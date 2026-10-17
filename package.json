@@ -1,0 +1,15 @@
+{
+  "name": "causa-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An evidence-first diagnostic lab for physical systems.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node scripts/browser-check.cjs",
+    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/rig.js"
+  },
+  "engines": { "node": ">=20" }
+}
