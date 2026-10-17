@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HYPOTHESES, createInvestigation, nextTest, informationGain, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from '../dist/engine.js';
-import { SimulatedRig } from '../dist/rig.js';
+import { HYPOTHESES, createInvestigation, nextTest, informationGain, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from '../public/engine.js';
+import { SimulatedRig } from '../public/rig.js';
 
 function isolate(fault) {
   const rig = new SimulatedRig(fault);

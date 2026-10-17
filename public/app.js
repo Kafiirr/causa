@@ -1,4 +1,5 @@
 import { HYPOTHESES, TESTS, createInvestigation, nextTest, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from './engine.js';
+import { createPerception } from './perception.js';
 import { SimulatedRig, randomFault } from './rig.js';
 
 const $ = id => document.getElementById(id);
@@ -35,7 +36,7 @@ function showPage(name) {
     el.classList.toggle('active', el.dataset.page === name);
     if (el.dataset.page === name) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
   });
-  if (name !== 'lab') stopCamera();
+  if (name !== 'lab') { stopCamera(); perception.cancel(); }
   if (name === 'evidence') renderEvidence();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -183,13 +184,13 @@ function renderEvidence() {
   for (const [index, attachment] of attachments.entries()) {
     const figure = document.createElement('figure');
     const img = document.createElement('img'); img.src = attachment.dataUrl; img.alt = `Reference camera capture ${index + 1}`;
-    const caption = document.createElement('figcaption'); caption.textContent = `Capture ${index + 1} · ${new Date(attachment.at).toLocaleTimeString()} · Reference only; not model analyzed.`;
+    const caption = document.createElement('figcaption'); caption.textContent = `Capture ${index + 1} · ${new Date(attachment.at).toLocaleTimeString()} · ${perception.describe(attachment)}`;
     figure.append(img, caption); $('attachment-list').appendChild(figure);
   }
 }
 
 $('export-evidence').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(evidenceExport(state, attachments), null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ ...evidenceExport(state, attachments), perception: perception.export() }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = `causa-${state.id.slice(0, 8)}.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -203,7 +204,7 @@ $('case-form').addEventListener('submit', e => {
   e.preventDefault();
   operation += 1; busy = false; stopCamera();
   state = createInvestigation(); rig = new SimulatedRig($('fault-select').value === 'random' ? randomFault() : $('fault-select').value);
-  attachments = []; $('camera-thumbnails').replaceChildren();
+  attachments = []; perception.reset(); $('camera-thumbnails').replaceChildren();
   $('case-dialog').close(); setFlow('main', false); showPage('lab'); setView('rig'); render();
   toast('New investigation started. The fault is hidden from the planner.');
 });
@@ -214,7 +215,7 @@ function setView(view) {
   $('view-camera').classList.toggle('selected', camera); $('view-rig').classList.toggle('selected', !camera);
   $('view-camera').setAttribute('aria-pressed', String(camera)); $('view-rig').setAttribute('aria-pressed', String(!camera));
   $('feed-label').textContent = camera ? 'REFERENCE CAPTURE' : 'SIMULATED FEED';
-  if (!camera) stopCamera();
+  if (!camera) { stopCamera(); perception.cancel(); }
 }
 $('view-rig').addEventListener('click', () => setView('rig'));
 $('view-camera').addEventListener('click', () => setView('camera'));
@@ -224,7 +225,7 @@ function stopCamera() {
   if (stream) { stream.getTracks().forEach(track => track.stop()); stream = null; }
   $('camera-video').srcObject = null; $('camera-video').hidden = true; $('camera-placeholder').hidden = false;
   $('camera-capture').disabled = true; $('camera-stop').hidden = true; $('camera-enable').hidden = false; $('camera-enable').disabled = false;
-  $('camera-status').textContent = 'Capture only. Visual diagnosis is not connected yet.';
+  $('camera-status').textContent = 'Capture a frame to inspect and review.';
 }
 
 $('camera-enable').addEventListener('click', async () => {
@@ -240,7 +241,7 @@ $('camera-enable').addEventListener('click', async () => {
     if (generation !== cameraGeneration) return;
     $('camera-video').hidden = false; $('camera-placeholder').hidden = true; $('camera-enable').hidden = true; $('camera-stop').hidden = false;
     $('camera-capture').disabled = attachments.length >= 6;
-    $('camera-status').textContent = 'Camera active. Captures stay in memory; up to 6 frames per case. No model analysis.';
+    $('camera-status').textContent = 'Camera active. Up to 6 frames per case. Analysis sends only your selected capture.';
   } catch (error) {
     if (generation !== cameraGeneration) return;
     stopCamera();
@@ -252,16 +253,16 @@ $('camera-capture').addEventListener('click', () => {
   const video = $('camera-video');
   if (!stream || !video.videoWidth || attachments.length >= 6) return;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.min(video.videoWidth, 960); canvas.height = Math.round(video.videoHeight * canvas.width / video.videoWidth);
+  const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
+  canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  const attachment = { type: 'camera_reference', at: new Date().toISOString(), analyzed: false, dataUrl: canvas.toDataURL('image/jpeg', .75) };
-  attachments.push(attachment);
-  const img = document.createElement('img'); img.src = attachment.dataUrl; img.alt = `Reference capture ${attachments.length}`; $('camera-thumbnails').appendChild(img);
+  perception.addFrame(canvas, 'camera');
   $('camera-capture').disabled = attachments.length >= 6;
   $('camera-status').textContent = `${attachments.length} of 6 reference frames captured. These are not diagnostic observations.`;
   $('evidence-count').textContent = String(state.events.length + attachments.length);
   toast('Reference frame captured. Export it from Evidence.');
 });
-window.addEventListener('pagehide', stopCamera);
-document.addEventListener('visibilitychange', () => { if (document.hidden) stopCamera(); });
+const perception = createPerception({ getCaseId: () => state.id, getFrames: () => attachments, onChange: () => { $('evidence-count').textContent = String(state.events.length + attachments.length); $('camera-capture').disabled = !stream || attachments.length >= 6; }, toast });
+window.addEventListener('pagehide', () => { stopCamera(); perception.cancel(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { stopCamera(); perception.cancel(); } });
 render();
