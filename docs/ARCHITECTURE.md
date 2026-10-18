@@ -23,8 +23,9 @@ Predictions are copied into the event log before observing. Every transition ret
 ```text
 camera / local JPEG or PNG → resized JPEG frame + capture IDs
   → POST /api/perception/analyze (same origin, authenticated)
-  → Muse Spark structured visual candidate
-  → up to two SAM requests for allowlisted component noun phrases
+  → optional operator-selected crop + component role
+  → Muse Spark structured visual candidate (original + optional crop)
+  → one targeted SAM request, or up to two for full-scene inspection
   → bounded stream + official @meta-sam/parser → normalized mask paths
   → frozen-frame overlay → operator review → local JSON export
 ```
@@ -33,13 +34,19 @@ camera / local JPEG or PNG → resized JPEG frame + capture IDs
 
 Requests require a recent capture/load timestamp, valid IDs, an inline JPEG/PNG header, matching dimensions, and at most 2.1 megapixels. The gateway hashes the exact bytes. Results bind case, request, frame, task, dimensions, source, and SHA-256. The client checks these bindings and discards results after cancellation, selection changes, or case resets. Timestamps for uploaded images describe loading; original capture age is unknown.
 
-Muse's structured schema constrains candidate outcomes to open/closed/unknown. Only usable valve inspections may retain open/closed; every dynamic task is forced to unknown. The prompt requires a clearly labeled main valve. This is an instruction to the model, not proof it follows it correctly. SAM requests use fixed noun phrases. The parser handles the official stream grammar and mask encodings; incomplete responses, diagnostics, wrong frame sizes, and out-of-bounds geometry are rejected. Mask allocations are bounded before decoding. Source boxes use inclusive corners on the wire and half-open bounds in the parser; the gateway normalizes them for the overlay.
+`public/perception-contract.js` shares the allowed component roles and crop geometry rules between browser and gateway. Main and bypass valves have separate IDs. The server chooses the SAM target from the inspection or crop, so an unrelated Muse scene selection cannot replace the pump or valve. SAM uses short concept prompts; both valve roles use `valve`. Full-frame valve matches can include either valve and are explicitly identity-unverified. Operator-selected regions narrow the search without proving identity.
+
+Muse's schema records component visibility and apparent handle orientation. The gateway always returns physical valve state, pump operation, and flow as unknown. Orientation is retained only for visible/partial valves in usable images. Raw descriptive text remains an unverified candidate. A reference open/closed state is recorded separately by the operator and never changes model claims or the simulator.
+
+Crops use integer source pixels, minimum 16 × 16, within the original frame. The browser encodes a native-resolution JPEG crop. The gateway checks both image headers and dimensions, hashes both byte sequences, and rejects mismatched task/component roles. Muse sees the original and crop; SAM sees the crop alone. The decoder validates geometry in crop space, then adds the crop origin to boxes. Mask-local paths and dimensions stay unchanged. Results use original-frame coordinates, so the overlay needs no additional crop scaling. The gateway does not decode and pixel-compare crop contents with the original; crop correspondence is client-supplied, operator-reviewed evidence, not an attestation.
+
+The parser handles the official stream grammar and mask encodings; incomplete responses, diagnostics, wrong frame sizes, and out-of-bounds geometry are rejected. Mask allocations are bounded before decoding. Source boxes use inclusive corners on the wire and half-open bounds in the parser; the gateway normalizes them for the overlay. Responses use `causa.perception.v2`; validation exports use `causa.validation.v2` with component-level reviews. The client checks original-frame bindings plus crop role, coordinates, size, and SHA-256 before accepting results. Changing a task or region clears the displayed candidate, retains prior results in export, and requires explicit reanalysis.
 
 A failed SAM call is reported separately from a completed empty result. Neither segmentation nor prose certifies valve position, flow, or successful repair. Candidate observations never eliminate hypotheses or pass functional verification. A later physical adapter needs a separately reviewed observation and measurement contract.
 
 ## Storage and privacy
 
-No application database is used. State, up to six resized captures, at most 24 analyses, and operator reviews live in browser memory. Explicit analysis sends the selected image to Meta through the server; raw image data and provider errors are not logged by this application. The server holds request data transiently and does not persist images. Provider/platform retention policies are separate from application storage. Exports include reference image bytes, candidate results, and reviews. These artifacts are inspectable, not signed or tamper-proof.
+No application database is used. State, up to six resized captures, at most 24 analyses, and operator reviews live in browser memory. Explicit analysis sends the selected image and any selected crop to Meta through the server; raw image data and provider errors are not logged by this application. The server holds request data transiently and does not persist images. Provider/platform retention policies are separate from application storage. Exports include reference image bytes, candidate results, and reviews. These artifacts are inspectable, not signed or tamper-proof.
 
 The camera stops on leaving its view, page hiding, stopping capture, or starting a new case. Analysis is cancelled on navigation, hiding, selection change, or case reset. Cancellation can discard a result after upstream work has already begun; it does not guarantee cancellation of provider billing.
 

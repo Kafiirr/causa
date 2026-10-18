@@ -31,8 +31,23 @@
 .frame-stage img { display: block; width: 100%; height: auto; }
 .frame-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 #frame-caption { font-size: 11px; line-height: 1.5; padding: 8px 0; color: #637269; }
-.sam-mask { fill: #ffbc5b; fill-opacity: .35; stroke: none; }
-.sam-box { fill: none; stroke: #ffbc5b; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.sam-mask { fill: var(--region-color, #ffbc5b); fill-opacity: .35; stroke: none; }
+.sam-box { fill: none; stroke: var(--region-color, #ffbc5b); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.sam-label { fill: var(--region-color, #ffbc5b); stroke: #13291e; stroke-width: 3px; paint-order: stroke; font: 14px sans-serif; }
+.manual-region { fill: #ffffff10; stroke: white; stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+#frame-overlay { pointer-events: none; }
+#frame-overlay.selecting-region { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.region-controls { margin: 18px 0; padding: 16px; border: 1px solid #cbd5c9; border-radius: 8px; display: grid; gap: 12px; }
+.region-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.region-numbers { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 12px 0; }
+.region-numbers input { width: 100%; min-width: 0; padding: 8px; border: 1px solid #b4bfb4; border-radius: 4px; }
+.region-controls summary { cursor: pointer; font-size: 12px; }
+.component-observation { border-top: 1px solid #cbd5c9; padding: 12px 0; }
+.perception-panel .overlay-toggle { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.physical-claims { padding: 12px; background: #e9eee4; border-left: 3px solid #7c977a; }
+.review-form fieldset { min-width: 0; border: 1px solid #cbd5c9; padding: 14px; display: grid; gap: 12px; border-radius: 6px; }
+.review-form legend { font-weight: 600; font-size: 13px; padding: 0 5px; }
+@media(max-width:600px) { .region-numbers { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 .camera-thumbnails button { border: 2px solid transparent; background: transparent; padding: 2px; border-radius: 6px; cursor: pointer; }
 .camera-thumbnails button[aria-pressed="true"] { border-color: #d86034; }
 .camera-thumbnails button img { display: block; }

@@ -12,12 +12,12 @@ Updated October 18, 2026. These results describe software, simulation, and live 
 - No browser JavaScript errors were observed.
 - Final typography and diagram refinements were rechecked at the three viewport widths.
 
-The automated camera test uses a synthetic device. Actual phone hardware, permission behavior across other browsers, Meta API calls, and physical rig measurements remain unvalidated.
+The automated camera test uses a synthetic device. Actual phone hardware, permission behavior across other browsers, and physical rig measurements remain unvalidated. Separate live API checks are documented below.
 
 ## Perception regression checks
 
-- 16 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits.
-- Expanded Chrome checks pass with mocked HTTP responses: explicit analysis only, missing-key disabled state, frozen overlays, model text rendered as text, separate operator review, unclear-review denominator, failure retry, request-binding rejection, frame-linked JSON export, cancellation on case reset, and responsive camera panels at 390/768/1440 pixels.
+- 19 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits; task-specific targeting despite unrelated model selections; appearance/state separation; crop bounds, role, byte and dimension binding; original-plus-crop request construction; crop-to-source geometry mapping.
+- Expanded Chrome checks pass with mocked HTTP responses: explicit analysis only, missing-key disabled state, frozen overlays, model text rendered as text, separate operator review, unclear-review denominator, failure retry, request-binding rejection, frame-linked JSON export, cancellation on case reset, responsive camera panels at 390/768/1440 pixels; visible-miss review accounting; drag and numeric crop selection; crop-hash mismatch rejection; mapped overlay coordinates and toggles; distinct-image counts; region reset on task changes.
 - The published app contains no mock response mode. Fixtures exist only in tests.
 - The production Worker build passes. Live API integration is checked below; real-camera accuracy remains untested.
 
@@ -34,14 +34,22 @@ The local `.env` key was recognized after server startup. The hosted project ini
 
 Sanitized local reports are in ignored `artifacts/meta-live-smoke.json`, `artifacts/meta-sam-positive.json`, and `artifacts/meta-live-ui-report.json`. The browser evidence export is also ignored. These single-run timings are diagnostics, not a latency benchmark. A rig is not yet assembled; physical validation is explicitly deferred.
 
-## First real-camera evaluation, after access is available
+## Targeting and crop integration
+
+The reported reference-image analyses showed Muse describing the pump and valves while SAM returned no regions for those components, alongside unrelated tank/tube overlays. These are integration observations, not verified physical state labels.
+
+- Focused inspections now request their own SAM component. Main/bypass roles are separate, with identity explicitly unverified.
+- Per-component reviews preserve visible misses and incorrect regions in the localization denominator. The summary counts distinct image hashes separately from repeated analyses.
+- A live original-plus-crop browser check passed with a 180 × 180 synthetic crop. Muse abstained (`usable: false`, physical state unknown), and the targeted pump SAM request completed with zero regions. Review, crop-bound export, and unchanged simulation state passed. This run took 11,667 ms and made two model calls; it validates transport, not a successful pump detection.
+
+## First real-camera evaluation, after assembling the rig
 
 1. Label the two valves MAIN and BYPASS. Fix the camera position and document the actual parts and valve markings. Record the reference valve state from direct physical inspection before asking the model.
 2. Collect a held-out set of at least 40 valve frames across open/closed states, two layouts, bright/dim lighting, and frontal/oblique views. Include partial occlusion, blurry images, missing labels, and frames where state is genuinely unknowable. Keep prompt-development images separate.
-3. For each frame, run **Main valve position** once and record observation agreement, region agreement, and reference valve state. Do not repeatedly analyze until the model gives the expected answer. Export each case (six frames maximum).
-4. Report the full open/closed/unknown confusion matrix and abstention coverage. Report correctness among assessable, non-abstained predictions separately from overall correctness. Count wrong confident answers explicitly; do not exclude them. Model unknown on a knowable view is an abstention, not an accurate state determination.
+3. For each frame, run **Main valve appearance** once and record visibility/handle-description agreement, localization agreement, and independently known reference valve state. Evaluate full-frame and operator-cropped runs as separate conditions. Do not repeatedly analyze until the model gives the expected answer. Export each case (six frames maximum).
+4. Report visibility and handle-orientation results against independently annotated references, including unknowns and missed components. Report coverage and agreement separately, with distinct-image counts and per-component results. Physical state is always unknown in this version; do not claim open/closed prediction accuracy. Any future state classifier requires documented valve calibration and a separate open/closed/unknown evaluation.
 5. Review SAM regions separately. Visual agreement is a usability check, not IoU. For quantitative segmentation, independently annotate the held-out frames and compare raster masks. The current export preserves normalized SVG paths and boxes, not benchmark ground-truth masks.
-6. Exercise dynamic inspections: pump and bypass must remain unknown from a single still frame even when the hardware looks plausible. Verify that no analysis changes simulator hypotheses or functional-check status.
+6. Exercise all inspections: physical valve state, pump operation, and flow must remain unknown from a single still frame even when the hardware looks plausible. Verify that no analysis changes simulator hypotheses or functional-check status.
 7. Record actual latency, API usage, and failures. Include no-match, rate-limit, occlusion, and unavailable-service cases. Add real transport fixtures only after stripping credentials and private image data.
 
 This initial sample is exploratory and cannot establish general reliability. Physical diagnosis remains gated on a separate expert-reviewed test protocol and validated temporal measurements; neither operator agreement nor segmentation alone passes that gate.

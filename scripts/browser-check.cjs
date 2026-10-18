@@ -89,16 +89,22 @@ const fs = require('node:fs/promises');
   console.log('PASS absent credentials keep analysis disabled');
 
   // Transport mocks only. These browser tests never contact Meta.
-  let analysisCalls = 0, mode = 'success';
+  let analysisCalls = 0, mode = 'success', lastPayload;
   await page.route('**/api/perception/status', route => route.fulfill({json:{configured:true,message:'Mock credentials for browser test only.'}}));
   await page.route('**/api/perception/analyze', async route => {
     analysisCalls++;
-    const frame = route.request().postDataJSON();
+    const frame = route.request().postDataJSON(); lastPayload=frame;
     const currentMode = mode;
     if (currentMode === 'delay') await new Promise(resolve => setTimeout(resolve,700));
     if (currentMode === 'error') { await route.fulfill({status:502,json:{error:{message:'Test upstream unavailable.'}}}); return; }
     const sha256 = require('node:crypto').createHash('sha256').update(Buffer.from(frame.image.split(',')[1],'base64')).digest('hex');
-    const result={schema:'causa.perception.v1',id:`mock-${analysisCalls}`,caseId:frame.caseId,requestId:currentMode==='mismatch'?'wrong-request':frame.requestId,task:frame.task,frame:{id:frame.frameId,sha256,width:frame.width,height:frame.height,source:frame.source,capturedAt:frame.capturedAt},models:{reasoning:'muse-spark-1.3',segmentation:'sam-3.1'},elapsedMs:50,assessment:{summary:'Candidate valve <img src=x onerror=alert(1)>',outcome:'unknown',reason:'Unclear view.',limitations:['Synthetic test fixture.'],components:[]},segmentations:[{component:'valve',status:'completed',objects:[{objectId:'0',box:{x1:20,y1:20,x2:59,y2:59},mask:{width:4,height:4,path:'M0 0L4 0L4 4L0 4Z'}}]}],limitations:['Does not verify a repair.'],verification:'unreviewed_candidate',diagnosticEffect:'none'};
+    const target={valve:'main_valve',bypass:'bypass_valve',pump:'pump',scene:null}[frame.task] || frame.focus?.component || 'reservoir';
+    const focus=frame.focus ? {...frame.focus,sha256:require('node:crypto').createHash('sha256').update(Buffer.from(frame.focus.image.split(',')[1],'base64')).digest('hex'),source:'operator_selected'} : null;
+    if(focus)delete focus.image;
+    if(focus && currentMode==='cropMismatch')focus.sha256='wrong-crop';
+    const x=focus?.x || 0,y=focus?.y || 0;
+    const objects=currentMode==='empty'?[]:[{objectId:'0',box:{x1:x+2,y1:y+2,x2:x+15,y2:y+15},mask:{width:4,height:4,path:'M0 0L4 0L4 4L0 4Z'}}];
+    const result={schema:'causa.perception.v2',id:`mock-${analysisCalls}`,caseId:frame.caseId,requestId:currentMode==='mismatch'?'wrong-request':frame.requestId,task:frame.task,target,focus,frame:{id:frame.frameId,sha256,width:frame.width,height:frame.height,source:frame.source,capturedAt:frame.capturedAt},models:{reasoning:'muse-spark-1.3',segmentation:'sam-3.1'},elapsedMs:50,assessment:{summary:'Candidate valve <img src=x onerror=alert(1)>',outcome:'unknown',reason:'Unclear view.',limitations:['Synthetic test fixture.'],components:[{component:target,visibility:'visible',orientation:'unknown',observation:'Visible test target'}]},segmentations:[{component:target,status:'completed',scope:focus?'operator_region':'full_frame',identity:'unverified',coordinateSpace:'original_frame',objects}],limitations:['Does not verify a repair.'],verification:'unreviewed_candidate',diagnosticEffect:'none'};
     await route.fulfill({json:result}).catch(()=>{});
   });
   await page.locator('#meta-refresh').click();
@@ -110,11 +116,11 @@ const fs = require('node:fs/promises');
   assert.equal(await page.locator('#frame-overlay path').count(),1);
   assert.equal(await page.locator('#perception-result img').count(),0);
   assert.equal(await page.locator('#metric-causes').textContent(),'04');
-  await page.locator('[name="observation"]').selectOption('unclear');
-  await page.locator('[name="segmentation"]').selectOption('incorrect');
+  await page.locator('[name="observation_main_valve"]').selectOption('unclear');
+  await page.locator('[name="segmentation_main_valve"]').selectOption('incorrect');
   await page.locator('[name="referenceOutcome"]').selectOption('unknown');
   await page.getByRole('button',{name:'Save review',exact:true}).click();
-  assert.match(await page.locator('#review-summary').textContent(),/0\/0 assessable.*1 unclear/);
+  assert.match(await page.locator('#review-summary').textContent(),/Main valve: 0\/0 assessable descriptions matching.*1 unclear/);
   await page.locator('#camera-stop').click();
   for (const width of [390,768,1440]) {
     await page.setViewportSize({width,height:1100});
@@ -157,6 +163,45 @@ const fs = require('node:fs/promises');
   assert.equal(await page.locator('#camera-thumbnails img').count(),1);
   assert.equal(analysisCalls,callsBefore+1);
   console.log('PASS local image loading does not automatically call Meta');
+  // A miss is component-specific; a selected crop has its own hash and source geometry.
+  mode='empty'; await page.locator('#perception-task').selectOption('pump');
+  await page.locator('#analyze-frame').click();await page.waitForSelector('[name="segmentation_pump"]');
+  assert.equal(await page.locator('[name="segmentation_pump"] option[value="matches"]').count(),0);
+  assert.match(await page.locator('.component-observation[data-component="pump"]').textContent(),/No matching region found/);
+  await page.locator('[name="observation_pump"]').selectOption('matches');
+  await page.locator('[name="segmentation_pump"]').selectOption('missed');
+  await page.getByRole('button',{name:'Save review',exact:true}).click();
+  assert.match(await page.locator('#review-summary').textContent(),/Pump: 1\/1 assessable descriptions matching · 0\/1 assessable localizations matching · 1 missed/);
+  await page.getByRole('button',{name:'Mark pump region',exact:true}).click();
+  assert.equal(await page.locator('#analyze-frame').isDisabled(),true);
+  await page.locator('#frame-preview').evaluate(el=>el.scrollIntoView({behavior:'instant',block:'center'}));
+  const bounds=await page.locator('#frame-overlay').boundingBox();
+  await page.mouse.move(bounds.x+bounds.width*.15,bounds.y+bounds.height*.2);await page.mouse.down();
+  await page.mouse.move(bounds.x+bounds.width*.45,bounds.y+bounds.height*.6);await page.mouse.up();
+  assert.equal(await page.locator('#region-mark').getAttribute('aria-pressed'),'false');
+  assert.equal(await page.locator('.manual-region').count(),1);
+  assert.equal(await page.locator('.review-saved').count(),0);
+  assert.match(await page.locator('#region-status').textContent(),/operator-selected region/);
+  mode='success'; await page.locator('#analyze-frame').click();await page.waitForSelector('[name="segmentation_pump"]');
+  assert.ok(lastPayload.focus.width>=16);assert.equal(lastPayload.focus.component,'pump');
+  assert.notEqual(lastPayload.focus.image,lastPayload.image);
+  assert.equal(Number(await page.locator('.sam-box').getAttribute('x')),lastPayload.focus.x+2);
+  await page.locator('.overlay-toggle input').uncheck();assert.equal(await page.locator('.sam-box').isVisible(),false);
+  await page.locator('.overlay-toggle input').check();
+  assert.match(await page.locator('#review-summary').textContent(),/^2 analyses across 1 distinct images/);
+  mode='cropMismatch';await page.locator('#analyze-frame').click();
+  await page.waitForFunction(()=>document.querySelector('#perception-status').textContent.includes('did not match'));
+  assert.match(await page.locator('#review-summary').textContent(),/^2 analyses/);
+  await page.locator('#region-clear').click();
+  assert.equal(await page.locator('.manual-region').count(),0);
+  assert.match(await page.locator('.review-saved').textContent(),/Review saved/);
+  await page.locator('#region-controls summary').click();
+  for(const [key,value] of Object.entries({x:20,y:30,width:80,height:60}))await page.locator(`#region-${key}`).fill(String(value));
+  await page.locator('#region-apply').click();assert.equal(await page.locator('.manual-region').getAttribute('x'),'20');
+  assert.equal(await page.locator('.manual-region').getAttribute('width'),'80');
+  await page.locator('#perception-task').selectOption('bypass');
+  assert.equal(await page.locator('.manual-region').count(),0);assert.equal(await page.locator('#region-component').inputValue(),'bypass_valve');
+  console.log('PASS component misses, drag/numeric crop selection, mapped masks, crop binding, distinct images, and task reset');
   await page.locator('#view-rig').click();
 
   for (const width of [390, 768, 1440]) {
