@@ -16,7 +16,7 @@ An `unknown` observation returns to investigation with candidates unchanged. A c
 
 Predictions are copied into the event log before observing. Every transition returns a fresh state. Exports include simulation provenance and independently typed camera reference attachments. Records are inspectable local artifacts; they are not signed or tamper-proof attestations.
 
-## Prepared Meta perception boundary
+## Meta perception boundary
 
 `public/perception.js` manages selected captures, explicit analysis, frozen-frame overlays, reviews, and exports. It does not import or mutate the diagnostic engine. `server/perception.mjs` is shared by the loopback Node server and the Sites Worker API routes.
 
@@ -53,4 +53,6 @@ Checked against official Meta documentation on October 18, 2026:
 - [Reading segmentation](https://dev.meta.ai/docs/sam/reading-segmentation): stream grammar, coordinates, masks, empty results.
 - [Client libraries](https://dev.meta.ai/docs/sam/client-libraries): official parser, completed/incomplete outcomes, mask decoding.
 
-API access, actual model responses, latency, accuracy, and cost on this equipment remain unvalidated. Automated tests use transport mocks and documented segmentation samples.
+Live API access, Muse structured output, and SAM stream/mask decoding have passed smoke checks on synthetic fixtures. Physical equipment accuracy and representative latency/cost remain unvalidated. Automated regression tests continue to use transport mocks; opt-in live checks are separate.
+
+A live request exposed hidden reasoning consuming 1198 of a 1200-token output budget before any usable JSON. Requests now specify `reasoning_effort: "minimal"` and `max_tokens: 4096`, retain fail-closed handling for truncated output, and export reasoning-token usage when provided. See [Meta reasoning documentation](https://dev.meta.ai/docs/reasoning).

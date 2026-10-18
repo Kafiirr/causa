@@ -40,9 +40,10 @@ An unclear observation retains the current hypotheses. A diagnosis or repair att
 - Real: information-gain test selection, explicit prediction commitments, immutable state transitions, hypothesis elimination, uncertainty handling, verification gating, evidence export, browser camera acquisition and capture.
 - Simulated: equipment state, diagnostic observations, repairs, and flow measurements. Test animations compress simulated time; they do not measure real elapsed collection time.
 - Camera captures / image uploads: six reference frames per case, resized to a maximum 960-pixel side. They stay in browser memory until explicitly analyzed or exported. Starting another case or reloading clears them.
-- Prepared Meta perception: Muse Spark structured visual observations followed by at most two SAM 3.1 segmentation requests. Frozen-frame overlays, operator review, frame hashes, and exportable model provenance. Requires a server key. Results never change the diagnostic engine.
+- Meta perception: Muse Spark structured visual observations followed by at most two SAM 3.1 segmentation requests. Frozen-frame overlays, operator review, frame hashes, and exportable model provenance. Requires a server key. Results never change the diagnostic engine.
 - Layout B mirrors the presentation of the same reviewed connection graph. This is not evidence of generalization to a new topology.
-- Not validated: live Muse/SAM calls, real-camera observation accuracy, physical sensors, or physical diagnostic procedures. This version was tested with mocked model transport only; no real API calls were made.
+- Live integration checked: authenticated model catalog, Muse structured image observations, SAM empty results, and nonempty SAM masks using synthetic fixtures.
+- Not validated: real-camera observation accuracy, physical sensors, or physical diagnostic procedures. Synthetic integration checks are not evidence of real-rig reliability.
 
 The planner never receives the selected simulator fault. This is separation of application responsibilities, not a security boundary against someone inspecting local browser code.
 
@@ -56,13 +57,13 @@ The interface loads DM Sans and Space Grotesk from Google Fonts, with system fal
 
 1. Verify final event rules before deciding what pre-event work can be submitted.
 2. Validate a low-voltage rig and expert-reviewed diagnostic procedures. The current fault ontology and predictions are authored assumptions, not learned physics.
-3. Activate the prepared gateway after receiving API access, then test Muse Spark image interpretation and SAM 3.1 segmentation on actual rig images.
+3. Test the activated Muse Spark and SAM 3.1 integration on actual rig images after assembling the rig.
 4. Use the frame-linked review workflow to validate observation accuracy before connecting any model outcome to elimination or verification.
 5. Run blind trials, including unsupported faults and ambiguous views, against a fixed checklist.
 
 See [architecture](docs/ARCHITECTURE.md), [build brief](docs/BUILD-BRIEF.md), and [field rig](docs/FIELD-RIG.md).
 
-## Enable Meta perception later
+## Configure Meta perception
 
 1. Copy `.env.example` to the ignored `.env` in **this CAUSA directory**. Set `MODEL_API_KEY` locally; do not put it in browser code, Git, screenshots, or chat.
 2. Restart `npm start`. For the hosted site, set the same name in Sites runtime secrets; the local `.env` is never published.
@@ -71,6 +72,24 @@ See [architecture](docs/ARCHITECTURE.md), [build brief](docs/BUILD-BRIEF.md), an
 
 Use explicit MAIN/BYPASS labels. A still frame cannot establish pump operation, flow rate, or successful repair. Unknown states remain unknown. The UI's agreement count excludes unclear reviews and is an exploratory operator assessment, not a calibrated accuracy metric. Reviews are append-only per analysis; a repeat analysis creates a separate record.
 
-The gateway uses `muse-spark-1.3` and `sam-3.1`, fixed Meta endpoints, a 30-second timeout per upstream call, one analysis in flight and four analyses per minute per user **per running isolate**. This in-memory limiter is not a durable spending cap. The UI allows 24 analyses per case; each analysis makes one Muse call and up to two SAM calls, with no automatic retries. Live latency, price, quota, and model availability need validation after access is granted.
+The gateway uses `muse-spark-1.3` and `sam-3.1`, fixed Meta endpoints, a 30-second timeout per upstream call, one analysis in flight and four analyses per minute per user **per running isolate**. This in-memory limiter is not a durable spending cap. The UI allows 24 analyses per case; each analysis makes one Muse call and up to two SAM calls, with no automatic retries. Representative latency, cost, quota, and real-rig accuracy still need measurement. Muse uses minimal reasoning and a 4096-token total output budget; this includes hidden reasoning tokens.
 
 See [perception architecture and API references](docs/ARCHITECTURE.md) and [validation protocol](docs/VALIDATION.md).
+
+### Local versus hosted configuration
+
+`causa/.env` configures only your local process. Restart `npm start` after changing it. The published site reads **Sites runtime secrets**, so changing the local file cannot activate the hosted URL. Hosted secret updates require deployment to apply their environment revision. Never place keys in `public/`, `.openai/hosting.json`, or a browser environment variable.
+
+The hosted key was configured as a secret during activation. The status endpoint checks key presence only; a successful analysis verifies actual model access at that time.
+
+### Explicit live integration checks
+
+Normal unit and browser regression tests mock model transport and never make Meta requests, even when a local key exists. These separate commands make billable calls and must be opted into:
+
+```sh
+node scripts/meta-smoke.mjs --allow-live --image path/to/test-image.png --sam
+# With npm start running, and Playwright/Chrome available:
+node scripts/meta-browser-smoke.cjs --allow-live
+```
+
+The first command sends the specified image to Meta and records a sanitized report in `artifacts/meta-live-smoke.json`. It runs one Muse request and up to two component segmentation requests. `--sam` adds a standalone valve segmentation request only if Muse selects no components. The second uses the app's synthetic schematic to test upload, live analysis, review, and export. Its report and full evidence export stay in ignored `artifacts/`. These are integration checks, not camera-accuracy tests.

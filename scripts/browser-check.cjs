@@ -9,6 +9,9 @@ const fs = require('node:fs/promises');
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, headless: true, args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, permissions: ['camera'], acceptDownloads: true });
   const page = await context.newPage();
+  // Keep the default browser suite offline even when local credentials exist.
+  await page.route('**/api/perception/status', route => route.fulfill({json:{configured:false,message:'Meta access is not configured for this offline test.'}}));
+  await page.route('**/api/perception/analyze', route => route.fulfill({status:503,json:{error:{code:'OFFLINE_TEST',message:'Live calls are disabled in browser tests.'}}}));
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const response = await page.goto(process.env.CAUSA_TEST_URL || 'http://127.0.0.1:4173', { waitUntil: 'networkidle' });

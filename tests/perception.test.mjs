@@ -41,6 +41,7 @@ test('Muse and SAM requests use documented models, exact frame, and server-only 
   assert.equal(result.frame.id,'frame1'); assert.match(result.frame.sha256,/^[a-f0-9]{64}$/);
   assert.equal(calls.length,2); assert.equal(calls[0].url,'https://api.meta.ai/v1/chat/completions'); assert.equal(calls[0].payload.model,'muse-spark-1.3');
   assert.equal(calls[0].payload.messages[1].content[1].image_url.url,image);
+  assert.equal(calls[0].payload.reasoning_effort,'minimal'); assert.equal(calls[0].payload.max_tokens,4096);
   assert.equal(calls[1].url,'https://api.meta.ai/v1/responses'); assert.equal(calls[1].payload.model,'sam-3.1'); assert.equal(calls[1].payload.metadata.mask_encoding,'one_bit');
   assert.equal(calls[1].payload.input[0].content[0].text,'water valve');
   for (const call of calls) assert.equal(call.headers.Authorization,`Bearer ${env.MODEL_API_KEY}`);
@@ -55,6 +56,12 @@ test('invalid or truncated model output is not accepted', async () => {
   for (const reply of [() => Response.json({choices:[{finish_reason:'length',message:{content:'{}'}}]}), () => spark({}), () => new Response('not-json'), () => new Response('sensitive-provider-error',{status:401})]) {
     const result=await handler({fetcher:reply})(request(),env); assert.equal(result.status,502); assert.ok(!(await result.text()).includes('sensitive-provider-error'));
   }
+});
+test('live-observed reasoning budget exhaustion is explicit and never starts SAM', async () => {
+  let calls=0;
+  const gateway=handler({fetcher:async()=>{calls++;return Response.json({choices:[{finish_reason:'length',message:{content:null}}],usage:{completion_tokens:1200,completion_tokens_details:{reasoning_tokens:1198}}});}});
+  const response=await gateway(request(),env); assert.equal(response.status,502);
+  assert.equal((await response.json()).error.code,'MODEL_OUTPUT_LIMIT'); assert.equal(calls,1);
 });
 test('concurrent rejections do not unlock the active analysis', async () => {
   let release; const waiting=new Promise(resolve => {release=resolve;}); let calls=0;

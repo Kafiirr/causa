@@ -1,6 +1,6 @@
 # Prototype validation
 
-Updated October 18, 2026. These results describe software and simulation checks, not physical diagnosis or live model accuracy. No real Meta API calls were made.
+Updated October 18, 2026. These results describe software, simulation, and live API integration checks. They do not establish physical diagnosis or real-camera accuracy.
 
 - 16 Node tests passed: all four isolated faults and repairs, information-gain selection, prediction-before-observation ordering, unclear observations, contradictory evidence, verification gating, invalid measurements, wrong repairs, immutable history, unsupported actions, export provenance, and simulator state separation.
 - Browser end-to-end checks passed for all four faults in Chrome. A case remains pending after diagnosis and repair until its flow check passes.
@@ -14,12 +14,25 @@ Updated October 18, 2026. These results describe software and simulation checks,
 
 The automated camera test uses a synthetic device. Actual phone hardware, permission behavior across other browsers, Meta API calls, and physical rig measurements remain unvalidated.
 
-## Prepared perception integration
+## Perception regression checks
 
-- 15 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits.
+- 16 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits.
 - Expanded Chrome checks pass with mocked HTTP responses: explicit analysis only, missing-key disabled state, frozen overlays, model text rendered as text, separate operator review, unclear-review denominator, failure retry, request-binding rejection, frame-linked JSON export, cancellation on case reset, and responsive camera panels at 390/768/1440 pixels.
 - The published app contains no mock response mode. Fixtures exist only in tests.
-- The production Worker build passes. Live access and accuracy remain untested.
+- The production Worker build passes. Live API integration is checked below; real-camera accuracy remains untested.
+
+## Live activation checks
+
+The local `.env` key was recognized after server startup. The hosted project initially had no runtime secrets; `MODEL_API_KEY` was configured separately as a hosted secret. No key value is stored in source, browser assets, or these reports.
+
+- Authenticated `GET /v1/models` returned HTTP 200 and included `muse-spark-1.3` and `sam-3.1`.
+- The original Muse request returned HTTP 200 but `finish_reason: length`, with 1198 reasoning tokens out of a 1200-token budget and no usable JSON. The gateway correctly rejected it. Requests now use minimal reasoning with a bounded 4096-token total output budget; a regression test covers this failure.
+- A live check on CAUSA's 839 × 445 schematic completed with `usable: false`, `outcome: unknown`. Muse used 844 input tokens and 546 output tokens, including 298 reasoning tokens. A standalone SAM valve request completed with zero regions. Combined elapsed time was 13,968 ms for that single run.
+- A separate SAM request on a deterministic 256 × 256 red-circle fixture returned one nonempty mask. It decoded to a 127 × 127 raster with source bounds `(65, 65)` to `(191, 191)` inclusive. Elapsed time was 2,097 ms for that run. This confirms live stream and mask compatibility, not rig-component accuracy.
+- The live local browser flow passed upload, explicit analysis, operator review, frame-bound export, and unchanged simulation state. Muse again abstained on the schematic; that request took 8,248 ms. The synthetic review was marked unclear, not counted as a correct physical observation.
+- Offline browser regression tests pass with local credentials present. Their model endpoints are intercepted so normal QA cannot accidentally send images or incur inference charges.
+
+Sanitized local reports are in ignored `artifacts/meta-live-smoke.json`, `artifacts/meta-sam-positive.json`, and `artifacts/meta-live-ui-report.json`. The browser evidence export is also ignored. These single-run timings are diagnostics, not a latency benchmark. A rig is not yet assembled; physical validation is explicitly deferred.
 
 ## First real-camera evaluation, after access is available
 
