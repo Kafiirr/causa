@@ -88,7 +88,7 @@ export async function validateFrame(input, now = Date.now()) {
     fail(validRegion(input.focus, dimensions, input.task), 'INVALID_REGION', 'Select a region of at least 16 × 16 pixels inside this frame, matching the inspection target.');
     const { component, x, y, width, height, image } = input.focus;
     const crop = await validateFrame({ ...input, focus: null, width, height, image }, now);
-    focus = { component, x, y, width, height, image, sha256: crop.sha256, source: 'operator_selected' };
+    focus = { component, x, y, width, height, image, sha256: crop.sha256, source: 'operator_selected', selectionMethod: input.focus.selectionMethod === 'muse_proposal' ? 'muse_proposal' : 'manual' };
   }
   return { ...input, ...dimensions, focus, sha256: Array.from(new Uint8Array(hash), value => value.toString(16).padStart(2, '0')).join('') };
 }
@@ -254,7 +254,7 @@ export async function analyzeFrame(frame, env, { fetcher = fetch, signal = new A
   return {
     schema: 'causa.perception.v4', id: crypto.randomUUID(), caseId: frame.caseId, requestId: frame.requestId,
     frame: { id: frame.frameId, sha256: frame.sha256, width: frame.width, height: frame.height, capturedAt: frame.capturedAt, source: frame.source },
-    focus: frame.focus ? { component: frame.focus.component, x: frame.focus.x, y: frame.focus.y, width: frame.focus.width, height: frame.focus.height, sha256: frame.focus.sha256, source: frame.focus.source } : null,
+    focus: frame.focus ? { component: frame.focus.component, x: frame.focus.x, y: frame.focus.y, width: frame.focus.width, height: frame.focus.height, sha256: frame.focus.sha256, source: frame.focus.source, selectionMethod: frame.focus.selectionMethod } : null,
     target, task: frame.task, analyzedAt: new Date().toISOString(), elapsedMs: Date.now() - started, models: MODEL_IDS,
     assessment, segmentations, unresolvedRegions, detections, verification: 'unreviewed_candidate', diagnosticEffect: 'none',
     usage: { reasoningInputTokens: responseBody.usage?.prompt_tokens ?? null, reasoningOutputTokens: responseBody.usage?.completion_tokens ?? null, reasoningTokens: responseBody.usage?.completion_tokens_details?.reasoning_tokens ?? null, modelCalls: 1 + prompts.length },

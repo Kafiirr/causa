@@ -1,3 +1,4 @@
+import { frameSize } from './frame-preparation.js';
 import { HYPOTHESES, TESTS, createInvestigation, nextTest, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from './engine.js';
 import { createPerception } from './perception.js';
 import { SimulatedRig, randomFault } from './rig.js';
@@ -254,10 +255,10 @@ $('camera-capture').addEventListener('click', () => {
   const video = $('camera-video');
   if (!stream || !video.videoWidth || attachments.length >= 6) return;
   const canvas = document.createElement('canvas');
-  const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight));
-  canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
+  const size=frameSize(video.videoWidth,video.videoHeight);
+  canvas.width=size.width;canvas.height=size.height;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  perception.addFrame(canvas, 'camera');
+  try { perception.addFrame(canvas, 'camera'); } catch(error) { toast(error.message); return; }
   $('camera-capture').disabled = attachments.length >= 6;
   $('camera-status').textContent = `${attachments.length} of 6 reference frames captured. These are not diagnostic observations.`;
   $('evidence-count').textContent = String(state.events.length + attachments.length);

@@ -69,3 +69,5 @@
 .overlay-legend span::before{content:"";width:14px;height:14px;background:var(--region-color);border:1px solid #53645d;border-radius:3px}
 .overlay-legend p{flex-basis:100%;margin:0;color:var(--muted)}
 .component-detail[hidden]{display:none}
+
+.proposal-inspection{margin:12px 0}.proposal-inspection button{margin:4px 8px 4px 0}

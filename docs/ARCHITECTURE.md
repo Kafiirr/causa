@@ -77,3 +77,11 @@ Tubing has up to twelve individual Muse section proposals rather than one box fo
 Valve proposals separate assembly bounds from handle bounds. A mask with at least 80% of its bounding area inside the proposed handle is flagged as likely handle-only; otherwise a valve mask below half the assembly-box area is flagged as likely partial. These geometric warnings are heuristic and depend on potentially inaccurate Muse proposals. No geometry marks a component complete or verified. Reviews distinguish partial coverage from the wrong component and keep partials in the assessable denominator.
 
 Component colors are shared between dashed proposals and filled masks, with names in an external legend instead of overlapping image captions. Per-component layer toggles remain available. Simulator component details are hidden in camera view; an uploaded outlet is not automatically treated as the simulator collection cup.
+
+### Input detail and proposal-assisted inspection
+
+`public/frame-preparation.js` bounds camera/upload dimensions to 1920 per side and 2.1 MP without upscaling smaller sources. JPEG encoding starts at quality .92 and lowers quality only if the encoded bytes exceed 1.8 MB; oversized inputs fail before transmission. Crops use the same byte bound at native selected-frame resolution.
+
+A user can select a Muse proposal as an inspection crop, with 12% context padding (minimum 8 source pixels) clipped to the frame. Tube sections remain separate. No request is triggered until Analyze is chosen. `focus.selectionMethod` records `muse_proposal` or `manual`, while `source` remains operator-selected: clicking the proposal expresses inspection intent, not verified component identity. Bounds, task/role, image dimensions, and hashes are still validated.
+
+The hosted SAM API currently accepts text concepts only, not visual box/point prompts: https://dev.meta.ai/docs/sam/segmenting . Proposal-assisted inspection crops the submitted image; it does not send a box prompt to SAM.

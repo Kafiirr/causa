@@ -214,3 +214,9 @@ test('tube proposals respect crop boundaries and malformed section coordinates a
   assert.equal(grounding.boxes.length,1);
   assert.throws(()=>validateAssessment(observation({components:[{...claim,regions:[[1,2,0,3]]}]}),'tube'));
 });
+
+test('proposal-assisted crop provenance is retained without changing operator-selected trust',async()=>{
+  const frame=await validateFrame(input({task:'pump',width:100,height:100,image:png(100,100),focus:{component:'pump',x:10,y:10,width:20,height:20,image:png(20,20),selectionMethod:'muse_proposal'}}));
+  assert.equal(frame.focus.source,'operator_selected');
+  assert.equal(frame.focus.selectionMethod,'muse_proposal');
+});

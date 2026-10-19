@@ -1,3 +1,4 @@
+import { frameSize, encodeFrame, proposalRegion } from './frame-preparation.js';
 import { COMPONENTS, LABELS, TARGETS, regionKey, validRegion, taskForComponent, conflictingClaims } from './perception-contract.js';
 const $ = id => document.getElementById(id);
 const colors = {reservoir:'#e5b144',pump:'#72c9ed',main_valve:'#ef945d',bypass_valve:'#cbb4fa',tube:'#80d1b7',outlet:'#f0a2c7'};
@@ -63,7 +64,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     $('region-mark').textContent = selecting ? 'Cancel marking' : 'Mark component region';
     $('frame-overlay').classList.toggle('selecting-region',selecting);
     if (selected) $('frame-overlay').setAttribute('viewBox',`0 0 ${selected.width} ${selected.height}`);
-    $('region-status').textContent = selecting ? 'Drag over the image to mark one component. Or set exact coordinates below.' : focus ? `${LABELS[focus.component]} · operator-selected region · ${focus.width} × ${focus.height} at (${focus.x}, ${focus.y}). Identity unverified.` : `Full-frame analysis target: ${target ? LABELS[target] : 'all components'}. ${target ? 'Manual cropping is optional.' : 'Choose a specific target to draw a crop.'}`;
+    $('region-status').textContent = selecting ? 'Drag over the image to mark one component. Or set exact coordinates below.' : focus ? `${LABELS[focus.component]} · ${focus.selectionMethod==='muse_proposal' ? 'Muse proposal selected as crop; identity unverified' : 'operator-selected region'} · ${focus.width} × ${focus.height} at (${focus.x}, ${focus.y}). Identity unverified.` : `Full-frame analysis target: ${target ? LABELS[target] : 'all components'}. ${target ? 'Manual cropping is optional.' : 'Choose a specific target to draw a crop.'}`;
     for (const key of ['x','y','width','height']) $(`region-${key}`).value = focus?.[key] ?? (key === 'width' ? selected?.width || 16 : key === 'height' ? selected?.height || 16 : 0);
     renderFocus(); updateButton();
   }
@@ -111,6 +112,14 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
         const label=node('label','','overlay-toggle');const toggle=node('input');toggle.type='checkbox';toggle.checked=!segmentation?.objects.length;
         boxGroups.forEach(g=>g.style.display=toggle.checked?'':'none');label.append(toggle,document.createTextNode(`Show approximate ${LABELS[component].toLowerCase()} Muse box`));card.append(label);
         toggle.addEventListener('change',()=>boxGroups.forEach(g=>g.style.display=toggle.checked?'':'none'));
+        const proposals=claim.grounding.boxes || [claim.grounding.box];
+        const controls=node('details','','proposal-inspection');controls.append(node('summary','Inspect a proposed region'));
+        controls.append(node('p','Use an approximate Muse box as an editable crop. Check that it includes the component; then choose Analyze. This does not verify identity or guarantee a SAM mask.','perception-note'));
+        proposals.forEach((box,index)=>{
+          const region=proposalRegion(component,box,selected);if(!region)return;
+          const button=node('button',`Use proposed ${LABELS[component].toLowerCase()}${proposals.length>1 ? ` section ${index+1}` : ''} crop`,'button light');
+          button.addEventListener('click',()=>{changeTask(taskForComponent(component));setRegion(region);$('frame-preview').scrollIntoView({block:'center',behavior:'instant'});});controls.append(button);
+        });card.append(controls);
       } else card.append(node('p','Muse location: unavailable or ambiguous. No component box is asserted.'));
       if (!segmentation?.objects.length) {
         const mark = node('button',`Mark ${LABELS[component].toLowerCase()} region`,'text-button');
@@ -168,7 +177,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     $('frame-preview').hidden = !frame;
     if (frame) {
       $('selected-frame').src = frame.dataUrl;
-      $('frame-caption').textContent = `${frame.source === 'upload' ? 'Loaded image' : 'Camera capture'} · ${frame.width} × ${frame.height} · ${new Date(frame.at).toLocaleTimeString()} · frozen frame`;
+      $('frame-caption').textContent = `${frame.source === 'upload' ? 'Loaded image' : 'Camera capture'} · ${frame.width} × ${frame.height} · ${new Date(frame.at).toLocaleTimeString()} · frozen frame · supplied image detail preserved within 1920 px / 2.1 MP limits`;
       $('perception-status').textContent = 'Only this selected frame is sent when you choose Analyze.';
     }
     document.querySelectorAll('#camera-thumbnails button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.frameId === frame?.id)));
@@ -176,7 +185,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
   }
   function addFrame(canvas, source) {
     if (getFrames().length >= 6) { toast('Six frames per case. Export your record and start a new case.'); return; }
-    const frame = { id: crypto.randomUUID(), caseId: getCaseId(), type: 'camera_reference', source, at: new Date().toISOString(), width: canvas.width, height: canvas.height, analyzed: false, dataUrl: canvas.toDataURL('image/jpeg', .8) };
+    const frame = { id: crypto.randomUUID(), caseId: getCaseId(), type: 'camera_reference', source, at: new Date().toISOString(), width: canvas.width, height: canvas.height, analyzed: false, dataUrl: encodeFrame(canvas) };
     getFrames().push(frame);
     const button = node('button'); button.type = 'button'; button.dataset.frameId = frame.id; button.setAttribute('aria-label', `Select reference capture ${getFrames().length}`);
     const img = node('img'); img.src = frame.dataUrl; img.alt = `Reference capture ${getFrames().length}`; button.append(img); button.addEventListener('click', () => select(frame)); $('camera-thumbnails').append(button);
@@ -221,8 +230,8 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     try {
       bitmap = await createImageBitmap(file);
       if (caseId !== getCaseId()) return;
-      const scale = Math.min(1, 960 / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const size=frameSize(bitmap.width,bitmap.height);
+      const canvas = document.createElement('canvas'); canvas.width=size.width;canvas.height=size.height;
       canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height); addFrame(canvas, 'upload');
     } catch { toast('This image could not be loaded. Try another JPEG or PNG.'); }
     finally { bitmap?.close(); }
@@ -241,7 +250,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
         if(current!==generation)return;
         const canvas=document.createElement('canvas');canvas.width=region.width;canvas.height=region.height;
         canvas.getContext('2d').drawImage($('selected-frame'),region.x,region.y,region.width,region.height,0,0,region.width,region.height);
-        crop={...region,image:canvas.toDataURL('image/jpeg',.9)};
+        crop={...region,image:encodeFrame(canvas)};
         const cropBytes=Uint8Array.from(atob(crop.image.split(',')[1]),c=>c.charCodeAt(0));
         cropHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',cropBytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
       }

@@ -76,3 +76,10 @@ Two opt-in live debugging checks used supplied screenshots, with six model calls
 - Wood-bench screenshot already containing old AI overlays: 20,345 ms. Muse supplied six tube-section proposals; two of ten SAM tube masks were assigned. Reservoir and outlet each had an assigned mask. Pump and both valve SAM detections were empty. Existing captions and overlays are baked into this input and may confound recognition; this is not a clean-image accuracy comparison.
 
 These checks establish schema/API compatibility, bounded assignment, honest abstention, and presentation behavior. They do not demonstrate full tubing coverage, improved aggregate model accuracy, or physical-rig reliability. Pump segmentation remains unresolved. No reference state or diagnostic-engine state was inferred from these images. Artifacts remain ignored locally under artifacts/.
+
+## Detail preservation and proposal-assisted crops — 2026-10-19
+
+- Three frame-preparation tests cover dimension/pixel limits without unnecessary downscaling, bounded JPEG encoding, and padded proposal crop geometry. A gateway test confirms proposal selection provenance remains operator-selected, not verified identity.
+- Browser regression passed, including a 1680 × 1050 upload retaining its dimensions, proposed crop selection causing no automatic Meta request, explicit analysis carrying `selectionMethod=muse_proposal`, crop clearing restoring the prior full-frame result, and the existing simulation/responsive checks.
+- Two standalone concept probes on the supplied black-bench screenshot returned zero `motor` masks and three `hose` masks. These offered no demonstrated improvement over the existing concepts, so no automatic alternate-prompt retries were added.
+- A focused live pump inspection using the revised image pipeline completed in 12,933 ms with two model calls. Muse supplied a labeled pump location proposal; SAM returned zero pump masks. Higher retained detail is an input-quality improvement, not evidence that pump segmentation is solved.
