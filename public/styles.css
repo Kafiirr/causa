@@ -58,7 +58,14 @@
 .perception-panel .button { white-space: normal; }
 @media(max-width: 600px) { .perception-panel { padding: 16px; } .perception-heading .text-button { font-size: 12px; } }
 
-.muse-box { fill: none; stroke: #44b7e3; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
+.muse-box { fill: none; stroke: var(--region-color, #44b7e3); stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
 .unresolved-box { fill: none; stroke: #aaa; stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 #mark-instruction, .perception-panel .claim-conflict { padding: 12px; background: #fff0d2; border-left: 3px solid #bc781f; color: #664611; }
 .frame-stage img { user-select: none; -webkit-user-drag: none; }
+
+/* Keep names outside the image so multiple proposals cannot obscure equipment. */
+.overlay-legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:12px;font-size:14px}
+.overlay-legend span{display:inline-flex;align-items:center;gap:7px}
+.overlay-legend span::before{content:"";width:14px;height:14px;background:var(--region-color);border:1px solid #53645d;border-radius:3px}
+.overlay-legend p{flex-basis:100%;margin:0;color:var(--muted)}
+.component-detail[hidden]{display:none}

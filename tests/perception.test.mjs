@@ -6,7 +6,7 @@ import { validateFrame, validateAssessment, createPerceptionHandler, decodeSegme
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const input = (extra = {}) => ({ caseId:'case1', frameId:'frame1', requestId:'request1', source:'camera', capturedAt:new Date().toISOString(), task:'valve', width:1, height:1, image, ...extra });
-const observation = (extra = {}) => ({ summary:'Main valve visible', usable:true, limitations:['The image cannot establish flow.'], outcome:'open', reason:'The labeled main valve appears open.', components:[{component:'main_valve',observation:'Visible handle',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}], segment:['main_valve'], ...extra });
+const observation = (extra = {}) => ({ summary:'Main valve visible', usable:true, limitations:['The image cannot establish flow.'], outcome:'open', reason:'The labeled main valve appears open.', components:[{component:'main_valve',observation:'Visible handle',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],regions:[],handleBox:[],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}], segment:['main_valve'], ...extra });
 const spark = (value = observation()) => Response.json({ choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}], usage:{prompt_tokens:100,completion_tokens:50} });
 const request = (body = input(), headers = {}) => new Request('https://causa.test/api/perception/analyze', { method:'POST', headers:{origin:'https://causa.test','content-type':'application/json','oai-authenticated-user-id':'owner',...headers}, body:JSON.stringify(body) });
 const env = { MODEL_API_KEY:'test-key-not-real' };
@@ -67,7 +67,7 @@ test('appearance never establishes physical state, and invalid component claims 
   const result=validateAssessment(observation(),'valve');
   assert.equal(result.components[0].orientation,'parallel');
   assert.deepEqual(result.claims,{valveState:'unknown',pumpOperation:'unknown',flow:'unknown'});
-  assert.equal(validateAssessment(observation({components:[{component:'pump',observation:'Black housing',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}]}),'pump').components[0].orientation,'unknown');
+  assert.equal(validateAssessment(observation({components:[{component:'pump',observation:'Black housing',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],regions:[],handleBox:[],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}]}),'pump').components[0].orientation,'unknown');
   for(const components of [[...observation().components,...observation().components],[{component:'pump',observation:'Pump'}]])assert.throws(()=>validateAssessment(observation({components}),'pump'));
 });
 test('crop binds its own bytes and dimensions, uses context, and maps masks to source pixels',async()=>{
@@ -79,7 +79,7 @@ test('crop binds its own bytes and dimensions, uses context, and maps masks to s
     return [{objectId:'0',box:{x1:1,y1:2,x2:22,y2:14},mask:{width:22,height:13,path:'M0 0L22 0L22 13Z'}}];
   }});
   const response=await gateway(request(body),env);assert.equal(response.status,200);const result=await response.json();
-  assert.equal(result.schema,'causa.perception.v3');
+  assert.equal(result.schema,'causa.perception.v4');
   assert.equal(calls[0].messages[1].content[1].image_url.url,body.image);
   assert.equal(calls[0].messages[1].content[3].image_url.url,focus.image);
   assert.equal(calls[1].input[0].content[1].image_url,focus.image);
@@ -190,4 +190,27 @@ test('SAM empty result succeeds, incomplete and mismatched geometry fail', async
 });
 test('SAM allocation limits apply before official decoder allocates a raster', async()=> {
   await assert.rejects(decodeSegmentation(samStream(sample.replace('data=27,60,','data=100000,100000,')),{width:320,height:334}),error=>error.code==='SAM_RESPONSE_TOO_LARGE');
+});
+
+test('tube sections associate independently without merging empty space or duplicating masks',()=>{
+  const a={x1:10,y1:10,x2:40,y2:20},b={x1:10,y1:70,x2:40,y2:80};
+  const claim={component:'tube',grounding:{box:a,boxes:[a,b,a]}};
+  const objects=[{objectId:'upper',box:a},{objectId:'lower',box:b},{objectId:'unrelated',box:{x1:10,y1:40,x2:40,y2:50}}];
+  const result=associateRegions(objects,[claim],'plastic tube');
+  assert.deepEqual(result.assigned.get('tube').map(o=>o.objectId),['upper','lower']);
+  assert.equal(result.unresolved[0].objectId,'unrelated');
+});
+test('handle-only and small valve masks cannot claim complete component coverage',()=>{
+  const box={x1:0,y1:0,x2:100,y2:100},handleBox={x1:40,y1:0,x2:60,y2:10};
+  const claim={component:'main_valve',grounding:{box,boxes:[box],handleBox}};
+  const mask=b=>associateRegions([{objectId:'v',box:b}],[claim],'valve').assigned.get('main_valve')[0];
+  assert.equal(mask(handleBox).extent,'likely_handle_only');
+  assert.equal(mask({x1:40,y1:30,x2:60,y2:40}).extent,'likely_partial_component');
+  assert.equal(mask(box).extent,'not_verified');
+});
+test('tube proposals respect crop boundaries and malformed section coordinates are rejected',()=>{
+  const claim={...observation().components[0],component:'tube',regions:[[0,0,200,200],[600,600,800,800]]};
+  const grounding=groundedBox(claim,{width:100,height:100,focus:{component:'tube',x:0,y:0,width:30,height:30}},true);
+  assert.equal(grounding.boxes.length,1);
+  assert.throws(()=>validateAssessment(observation({components:[{...claim,regions:[[1,2,0,3]]}]}),'tube'));
 });

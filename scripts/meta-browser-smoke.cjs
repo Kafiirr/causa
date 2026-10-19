@@ -31,7 +31,7 @@ const artifact = name => path.join(__dirname, '..', 'artifacts', name);
     assert.equal(response.status(), 200, result.error?.code);
     await page.waitForSelector('.review-form');
     assert.equal(result.assessment.outcome, 'unknown');
-    assert.equal(result.schema,'causa.perception.v3');assert.equal(result.focus.component,'pump');
+    assert.equal(result.schema,'causa.perception.v4');assert.equal(result.focus.component,'pump');
     assert.equal(result.focus.width,180);assert.equal(result.segmentations[0].component,'pump');
     assert.equal(result.segmentations[0].status,'completed');
     for(const select of await page.locator('.review-form fieldset select').all())await select.selectOption('unclear');

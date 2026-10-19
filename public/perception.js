@@ -1,5 +1,6 @@
 import { COMPONENTS, LABELS, TARGETS, regionKey, validRegion, taskForComponent, conflictingClaims } from './perception-contract.js';
 const $ = id => document.getElementById(id);
+const colors = {reservoir:'#e5b144',pump:'#72c9ed',main_valve:'#ef945d',bypass_valve:'#cbb4fa',tube:'#80d1b7',outlet:'#f0a2c7'};
 const svgNS = 'http://www.w3.org/2000/svg';
 const node = (tag, text, className) => { const el = document.createElement(tag); if (text) el.textContent = text; if (className) el.className = className; return el; };
 
@@ -12,7 +13,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     <p id="meta-connection" role="status">Checking server configuration…</p>
     <p class="perception-note">Capture or load a frame, then explicitly send it to Meta for analysis. Observations need your review. A still image cannot verify flow, pump operation, or a repair.</p>
     <div class="perception-controls"><label class="button light upload-label">Load image<input id="frame-upload" type="file" accept="image/jpeg,image/png" /></label><label>Inspection<select id="perception-task"><option value="scene">All visible components</option><option value="reservoir">Reservoir visibility</option><option value="outlet">Outlet visibility</option><option value="tube">Tubing visibility</option><option value="valve">Main valve appearance</option><option value="bypass">Bypass visibility</option><option value="pump">Pump visibility</option></select></label></div>
-    <figure id="frame-preview" hidden><p id="mark-instruction" hidden>Manual crop: drag a box on the image. This is your selection, not an AI detection.</p><div class="frame-stage"><img draggable="false" id="selected-frame" alt="Selected reference frame"/><svg id="frame-overlay" aria-label="Image regions and manual crop" role="img"></svg></div><figcaption id="frame-caption"></figcaption></figure>
+    <figure id="frame-preview" hidden><p id="mark-instruction" hidden>Manual crop: drag a box on the image. This is your selection, not an AI detection.</p><div class="frame-stage"><img draggable="false" id="selected-frame" alt="Selected reference frame"/><svg id="frame-overlay" aria-label="Image regions and manual crop" role="img"></svg></div><figcaption id="frame-caption"></figcaption><div id="overlay-legend" class="overlay-legend"></div></figure>
     <div id="region-controls" class="region-controls" hidden>
       <label>Analysis target<select id="region-component"></select></label>
       <div class="region-actions"><button id="region-mark" class="button light" aria-pressed="false">Mark component region</button><button id="region-clear" class="text-button">Use full frame</button></div>
@@ -40,8 +41,8 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       if (!entries.length) continue;
       const claims = entries.filter(c => c.observation !== 'unclear');
       const groundings=entries.filter(c=>['matches','incorrect'].includes(c.grounding));
-      const masks = entries.filter(c => ['matches','incorrect','missed'].includes(c.segmentation));
-      root.append(node('p', `${LABELS[component]}: ${claims.filter(c => c.observation === 'matches').length}/${claims.length} assessable descriptions matching · ${masks.filter(c => c.segmentation === 'matches').length}/${masks.length} assessable SAM localizations matching · ${masks.filter(c => c.segmentation === 'missed').length} missed · ${groundings.filter(c=>c.grounding==='matches').length}/${groundings.length} assessable Muse boxes matching. ${entries.length - claims.length} unclear descriptions excluded.`));
+      const masks = entries.filter(c => ['matches','partial','incorrect','missed'].includes(c.segmentation));
+      root.append(node('p', `${LABELS[component]}: ${claims.filter(c => c.observation === 'matches').length}/${claims.length} assessable descriptions matching · ${masks.filter(c => c.segmentation === 'matches').length}/${masks.length} assessable SAM localizations matching · ${masks.filter(c=>c.segmentation==='partial').length} partial · ${masks.filter(c => c.segmentation === 'missed').length} missed · ${groundings.filter(c=>c.grounding==='matches').length}/${groundings.length} assessable Muse boxes matching. ${entries.length - claims.length} unclear descriptions excluded.`));
     }
     root.append(node('p', 'Exploratory operator review, not calibrated accuracy. Unclear or unassessed regions are excluded from localization counts.'));
   }
@@ -73,22 +74,23 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     return true;
   }
   function drawBox(bounds,caption,component,className) {
-    const group=document.createElementNS(svgNS,'g');group.dataset.component=component||'unresolved';group.style.setProperty('--region-color',className==='muse-box'?'#44b7e3':'#aaa');
+    const group=document.createElementNS(svgNS,'g');group.dataset.component=component||'unresolved';group.style.setProperty('--region-color',colors[component] || '#aaa');
     const box=document.createElementNS(svgNS,'rect');
     for(const [key,value] of Object.entries({x:bounds.x1,y:bounds.y1,width:bounds.x2-bounds.x1+1,height:bounds.y2-bounds.y1+1}))box.setAttribute(key,value);
     box.setAttribute('class',className);group.append(box);
-    const text=document.createElementNS(svgNS,'text');text.setAttribute('x',bounds.x1+3);text.setAttribute('y',Math.max(14,bounds.y1-5));text.setAttribute('class','sam-label');if(bounds.x1>selected.width*.65){text.setAttribute('text-anchor','end');text.setAttribute('x',Math.min(selected.width-4,bounds.x2));}text.textContent=caption;group.append(text);
+    const title=document.createElementNS(svgNS,'title');title.textContent=caption;group.append(title);
     $('frame-overlay').append(group);return group;
   }
   function showResult() {
-    $('perception-result').replaceChildren(); $('frame-overlay').replaceChildren(); renderFocus();
+    $('perception-result').replaceChildren(); $('frame-overlay').replaceChildren(); $('overlay-legend').replaceChildren(); renderFocus();
     const result = latest(); if (!result || selecting) return;
     const section = $('perception-result');
     section.append(node('span', 'MODEL CANDIDATE · DOES NOT UPDATE DIAGNOSIS', 'eyebrow'), node('h4', result.assessment.summary));
     section.append(node('p', 'Physical valve state: unknown · Pump operation: unknown · Flow: unknown', 'physical-claims'), node('p', result.assessment.reason));
     const componentIds = result.target ? [result.target] : Object.keys(COMPONENTS);
     const overlay = $('frame-overlay'); overlay.setAttribute('viewBox', `0 0 ${selected.width} ${selected.height}`);
-    const colors = {reservoir:'#e5b144',pump:'#72c9ed',main_valve:'#ef945d',bypass_valve:'#cbb4fa',tube:'#80d1b7',outlet:'#f0a2c7'};
+    for(const component of componentIds){const item=node('span',LABELS[component]);item.style.setProperty('--region-color',colors[component]);$('overlay-legend').append(item);}
+    $('overlay-legend').append(node('p','Dashed outlines: Muse proposals · Filled regions: SAM candidates · Gray outlines: unresolved. Colors identify the proposed role, not verified identity.'));
     for (const component of componentIds) {
       const claim = result.assessment.components.find(c => c.component === component);
       const segmentation = result.segmentations.find(c => c.component === component);
@@ -100,12 +102,15 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       if(conflicts.length)card.append(node('p',`Repeated analyses disagree on ${conflicts.join(' and ')} for this exact image and scope. Treat this claim as unresolved.`, 'claim-conflict'));
       const regionText = !segmentation ? 'Not requested for this component.' : segmentation.status === 'failed' ? 'Unavailable. Absence has not been established.' : segmentation.objects.length ? `${segmentation.objects.length} SAM mask(s) associated with a Muse location proposal. Identity and full-component coverage need review.` : segmentation.rawMatches ? `SAM found ${segmentation.rawMatches} concept match(es), but none could be assigned to this component. Role unresolved.` : 'No matching region found by SAM. This does not establish that the component is absent.';
       card.append(node('p',`SAM localization: ${regionText}`,'segmentation-status'));
+      const partial=segmentation?.objects.filter(o=>o.extent==='likely_handle_only'||o.extent==='likely_partial_component') || [];
+      if(partial.length)card.append(node('p',partial.some(o=>o.extent==='likely_handle_only') ? 'Coverage warning: mask appears limited to the handle. The valve body is not established by this mask.' : 'Coverage warning: mask appears to cover only part of the valve assembly.', 'claim-conflict'));
+      if(component==='tube' && segmentation?.status==='completed' && segmentation.proposalCoverage)card.append(node('p',`Tube sections: ${segmentation.proposalCoverage.supported}/${segmentation.proposalCoverage.proposed} Muse proposals have associated SAM masks. This counts supported proposals, not pixel coverage; the complete tubing network remains unverified.`));
       if(claim?.grounding){
-        card.append(node('p',`Muse location: approximate box proposal. ${claim.grounding.evidence} This is independent of SAM success.`));
-        const boxGroup=drawBox(claim.grounding.box,`${LABELS[component]} · Muse proposal`,component,'muse-box');
+        card.append(node('p',`Muse location: approximate box proposal(s). ${claim.grounding.evidence} This is independent of SAM success.`));
+        const boxGroups=(claim.grounding.boxes || [claim.grounding.box]).map(box=>drawBox(box,`${LABELS[component]} · Muse proposal`,component,'muse-box'));
         const label=node('label','','overlay-toggle');const toggle=node('input');toggle.type='checkbox';toggle.checked=!segmentation?.objects.length;
-        boxGroup.style.display=toggle.checked?'':'none';label.append(toggle,document.createTextNode(`Show approximate ${LABELS[component].toLowerCase()} Muse box`));card.append(label);
-        toggle.addEventListener('change',()=>boxGroup.style.display=toggle.checked?'':'none');
+        boxGroups.forEach(g=>g.style.display=toggle.checked?'':'none');label.append(toggle,document.createTextNode(`Show approximate ${LABELS[component].toLowerCase()} Muse box`));card.append(label);
+        toggle.addEventListener('change',()=>boxGroups.forEach(g=>g.style.display=toggle.checked?'':'none'));
       } else card.append(node('p','Muse location: unavailable or ambiguous. No component box is asserted.'));
       if (!segmentation?.objects.length) {
         const mark = node('button',`Mark ${LABELS[component].toLowerCase()} region`,'text-button');
@@ -120,7 +125,6 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
           const title=document.createElementNS(svgNS,'title');title.textContent=`${LABELS[component]} candidate ${object.objectId} — identity unverified`;group.append(title);
           const mask=document.createElementNS(svgNS,'path');mask.setAttribute('d',object.mask.path);mask.setAttribute('transform',`translate(${x1} ${y1}) scale(${(x2-x1+1)/object.mask.width} ${(y2-y1+1)/object.mask.height})`);mask.setAttribute('class','sam-mask');group.append(mask);
           const box=document.createElementNS(svgNS,'rect');for(const [key,value] of Object.entries({x:x1,y:y1,width:x2-x1+1,height:y2-y1+1}))box.setAttribute(key,value);box.setAttribute('class','sam-box');group.append(box);
-          const caption=document.createElementNS(svgNS,'text');caption.setAttribute('x',x1+3);caption.setAttribute('y',Math.max(14,y1-5));caption.setAttribute('class','sam-label');if(x1>selected.width*.65){caption.setAttribute('text-anchor','end');caption.setAttribute('x',Math.min(selected.width-4,x2));}caption.textContent=`${LABELS[component]} · candidate`;group.append(caption);
           overlay.append(group);groups.push(group);
         }
         toggle.addEventListener('change',()=>groups.forEach(g=>g.style.display=toggle.checked?'':'none'));
@@ -144,8 +148,8 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       const group=node('fieldset');group.append(node('legend',`${LABELS[component]} review`));
       choice(group,'Does this component description match?',`observation_${component}`,[['matches','Matches'],['incorrect','Incorrect'],['unclear','Cannot tell']]);
       const segmentation=result.segmentations.find(s=>s.component===component);
-      if(result.assessment.components.find(c=>c.component===component)?.grounding)choice(group,'Does the approximate Muse box cover the intended component?',`grounding_${component}`,[['matches','Matches'],['incorrect','Wrong / incomplete box'],['unclear','Cannot tell']]);
-      if(segmentation?.status==='completed')choice(group,'Does the SAM mask cover this component?',`segmentation_${component}`,[...(segmentation.objects.length ? [['matches','Matches intended component'],['incorrect','Wrong region / incomplete coverage']] : []),['missed','Visible component was missed'],['unclear','Cannot tell']]);
+      if(result.assessment.components.find(c=>c.component===component)?.grounding)choice(group,'Do the approximate Muse boxes cover the intended component?',`grounding_${component}`,[['matches','Matches'],['incorrect','Wrong / incomplete box'],['unclear','Cannot tell']]);
+      if(segmentation?.status==='completed')choice(group,'Does the SAM mask cover this component?',`segmentation_${component}`,[...(segmentation.objects.length ? [['matches','Matches intended component'],['partial','Correct component, partial coverage'],['incorrect','Wrong component / region']] : []),['missed','Visible component was missed'],['unclear','Cannot tell']]);
       else group.append(node('p',segmentation ? 'Regions unavailable; localization will be recorded as unassessed.' : 'Segmentation not requested; localization will be recorded as unassessed.','perception-note'));
       form.append(group);
     }
@@ -245,12 +249,12 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       const response = await fetch('/api/perception/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(70_000)]), body: JSON.stringify({ caseId, requestId, frameId:frame.id, capturedAt:frame.at, source:frame.source, width:frame.width, height:frame.height, image:frame.dataUrl, task, focus:crop }) });
       const result = await response.json(); if (current !== generation || caseId !== getCaseId()) return;
       if (!response.ok) throw new Error(result.error?.message || 'Analysis could not complete.');
-      if (result.schema !== 'causa.perception.v3' || result.caseId !== caseId || result.requestId !== requestId || result.frame?.id !== frame.id || result.frame.sha256 !== hash || result.task !== task || result.frame.width !== frame.width || result.frame.height !== frame.height || regionKey(result.focus) !== regionKey(region) || (region && result.focus?.sha256 !== cropHash)) throw new Error('The response did not match this capture. No result was accepted.');
+      if (result.schema !== 'causa.perception.v4' || result.caseId !== caseId || result.requestId !== requestId || result.frame?.id !== frame.id || result.frame.sha256 !== hash || result.task !== task || result.frame.width !== frame.width || result.frame.height !== frame.height || regionKey(result.focus) !== regionKey(region) || (region && result.focus?.sha256 !== cropHash)) throw new Error('The response did not match this capture. No result was accepted.');
       analyses.push(result); frame.analyzed = true; showResult(); summary(); onChange();
       $('perception-status').textContent = 'Candidate ready for review. The simulated diagnosis is unchanged.';
     } catch (error) { if (current === generation) $('perception-status').textContent = error.name === 'TimeoutError' ? 'Analysis timed out. Try again.' : error.message || 'Analysis failed. Try again.'; }
     finally { if (current === generation) { pending = false; updateButton(); } }
   });
   connection(); summary(); regionUI();
-  return { addFrame, cancel, reset() { cancel(); selected = null; focus = null; selecting = false; drag = null; analyses = []; reviews = []; $('frame-preview').hidden = true; $('selected-frame').removeAttribute('src'); $('frame-overlay').replaceChildren(); $('perception-result').replaceChildren(); $('perception-status').textContent = 'Select a frame to begin.'; summary(); regionUI(); }, export() { return { schema:'causa.validation.v3', analyses, reviews, liveModelAccuracy:'not_established', diagnosticEffect:'none' }; }, describe(frame) { const results = analyses.filter(a => a.frame.id === frame.id); return results.length ? `${results.length} model candidates · ${reviews.filter(r => r.frameId === frame.id).length} operator reviews · diagnosis unchanged` : 'Reference only; not model analyzed.'; } };
+  return { addFrame, cancel, reset() { cancel(); selected = null; focus = null; selecting = false; drag = null; analyses = []; reviews = []; $('frame-preview').hidden = true; $('selected-frame').removeAttribute('src'); $('frame-overlay').replaceChildren(); $('overlay-legend').replaceChildren(); $('perception-result').replaceChildren(); $('perception-status').textContent = 'Select a frame to begin.'; summary(); regionUI(); }, export() { return { schema:'causa.validation.v4', analyses, reviews, liveModelAccuracy:'not_established', diagnosticEffect:'none' }; }, describe(frame) { const results = analyses.filter(a => a.frame.id === frame.id); return results.length ? `${results.length} model candidates · ${reviews.filter(r => r.frameId === frame.id).length} operator reviews · diagnosis unchanged` : 'Reference only; not model analyzed.'; } };
 }

@@ -12,7 +12,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),assert=require('n
   try{
     const page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await page.goto('http://127.0.0.1:4173',{waitUntil:'networkidle'});
+    await page.goto(process.env.CAUSA_TEST_URL || 'http://127.0.0.1:4173',{waitUntil:'networkidle'});
     await page.locator('#view-camera').click();
     await page.locator('#frame-upload').setInputFiles(imagePath);
     await page.locator('#perception-task').selectOption(task);
@@ -21,7 +21,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),assert=require('n
     const waiting=page.waitForResponse(r=>r.url().endsWith('/api/perception/analyze'),{timeout:75000});
     await page.locator('#analyze-frame').click();
     const response=await waiting,result=await response.json();
-    assert.equal(response.status(),200,result.error?.message);assert.equal(result.schema,'causa.perception.v3');
+    assert.equal(response.status(),200,result.error?.message);assert.equal(result.schema,'causa.perception.v4');
     assert.equal(Boolean(result.focus),Boolean(region));assert.equal(result.segmentations.length,task==='scene'?6:1);
     if(task==='scene'){
       assert.equal(result.detections.filter(d=>d.prompt==='valve').length,1);
@@ -34,7 +34,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),assert=require('n
     const artifact=path.join(__dirname,'..','artifacts');await fs.mkdir(artifact,{recursive:true});
     await fs.writeFile(path.join(artifact,`meta-reference-${task}${region?'-crop':''}-result.json`),JSON.stringify(result,null,2));
     await page.locator('.frame-stage').screenshot({path:path.join(artifact,`meta-reference-${task}${region?'-crop':''}-overlay.png`)});
-    const report={at:new Date().toISOString(),kind:'single_reference_integration_not_accuracy_benchmark',task,focus:result.focus,usable:result.assessment.usable,elapsedMs:result.elapsedMs,usage:result.usage,components:result.assessment.components.map(c=>({component:c.component,visibility:c.visibility,handleType:c.handleType,orientation:c.orientation,grounding:c.grounding})),sam:result.segmentations.map(s=>({component:s.component,status:s.status,rawMatches:s.rawMatches,assigned:s.objects.map(o=>o.box)})),unresolved:result.unresolvedRegions.length};
+    const report={at:new Date().toISOString(),kind:'single_reference_integration_not_accuracy_benchmark',task,focus:result.focus,usable:result.assessment.usable,elapsedMs:result.elapsedMs,usage:result.usage,components:result.assessment.components.map(c=>({component:c.component,visibility:c.visibility,handleType:c.handleType,orientation:c.orientation,grounding:c.grounding})),sam:result.segmentations.map(s=>({component:s.component,status:s.status,rawMatches:s.rawMatches,proposalCoverage:s.proposalCoverage,assigned:s.objects.map(o=>({box:o.box,extent:o.extent}))})),unresolved:result.unresolvedRegions.length};
     await fs.writeFile(path.join(artifact,`meta-reference-${task}${region?'-crop':''}-report.json`),JSON.stringify(report,null,2));
     console.log(JSON.stringify(report,null,2));assert.deepEqual(errors,[]);
   }finally{await browser.close();}

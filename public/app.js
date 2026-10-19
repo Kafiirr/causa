@@ -211,6 +211,7 @@ $('case-form').addEventListener('submit', e => {
 
 function setView(view) {
   const camera = view === 'camera';
+  document.querySelector('.component-detail').hidden = camera;
   $('digital-view').hidden = camera; $('camera-view').hidden = !camera;
   $('view-camera').classList.toggle('selected', camera); $('view-rig').classList.toggle('selected', !camera);
   $('view-camera').setAttribute('aria-pressed', String(camera)); $('view-rig').setAttribute('aria-pressed', String(!camera));

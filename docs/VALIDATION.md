@@ -65,3 +65,14 @@ The user's October 18 reports exposed three reproducible application defects: th
 7. Record actual latency, API usage, and failures. Include no-match, rate-limit, occlusion, and unavailable-service cases. Add real transport fixtures only after stripping credentials and private image data.
 
 This initial sample is exploratory and cannot establish general reliability. Physical diagnosis remains gated on a separate expert-reviewed test protocol and validated temporal measurements; neither operator agreement nor segmentation alone passes that gate.
+
+## Coverage and presentation correction — 2026-10-19
+
+The v4 contract adds separate tubing-section proposals and valve handle bounds. Regression checks cover multi-section assignment, unrelated candidates remaining unresolved, overlapping proposals not duplicating masks, crop-bound filtering, malformed section rejection, and partial/handle-only warnings that never assert complete coverage. The 25 gateway tests and existing engine suite pass; syntax and TypeScript checks pass. Browser regression checks pass at 390, 768, and 1440 pixels, including multiple-box toggles, partial-coverage reviews, missing-mask reviews, camera/simulator detail separation, and the existing four simulated fault paths.
+
+Two opt-in live debugging checks used supplied screenshots, with six model calls each:
+
+- Earlier black-bench screenshot without AI overlays: 26,465 ms. Muse supplied nine tube-section proposals; five of eight SAM tube masks were assigned, supporting five proposals. Both valve masks were assigned to separate roles and flagged as likely partial. Pump and reservoir SAM masks were absent; outlet had one assigned mask.
+- Wood-bench screenshot already containing old AI overlays: 20,345 ms. Muse supplied six tube-section proposals; two of ten SAM tube masks were assigned. Reservoir and outlet each had an assigned mask. Pump and both valve SAM detections were empty. Existing captions and overlays are baked into this input and may confound recognition; this is not a clean-image accuracy comparison.
+
+These checks establish schema/API compatibility, bounded assignment, honest abstention, and presentation behavior. They do not demonstrate full tubing coverage, improved aggregate model accuracy, or physical-rig reliability. Pump segmentation remains unresolved. No reference state or diagnostic-engine state was inferred from these images. Artifacts remain ignored locally under artifacts/.
