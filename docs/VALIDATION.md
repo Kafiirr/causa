@@ -1,6 +1,6 @@
 # Prototype validation
 
-Updated October 18, 2026. These results describe software, simulation, and live API integration checks. They do not establish physical diagnosis or real-camera accuracy.
+Updated October 19, 2026. These results describe software, simulation, and live API integration checks. They do not establish physical diagnosis or real-camera accuracy.
 
 - 16 Node tests passed: all four isolated faults and repairs, information-gain selection, prediction-before-observation ordering, unclear observations, contradictory evidence, verification gating, invalid measurements, wrong repairs, immutable history, unsupported actions, export provenance, and simulator state separation.
 - Browser end-to-end checks passed for all four faults in Chrome. A case remains pending after diagnosis and repair until its flow check passes.
@@ -16,7 +16,7 @@ The automated camera test uses a synthetic device. Actual phone hardware, permis
 
 ## Perception regression checks
 
-- 19 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits; task-specific targeting despite unrelated model selections; appearance/state separation; crop bounds, role, byte and dimension binding; original-plus-crop request construction; crop-to-source geometry mapping.
+- 22 gateway tests pass, alongside the original 16 engine tests: missing-key behavior with zero upstream calls; authentication and origin checks; frame age, image dimensions, and byte hashes; still-frame abstention; exact Muse/SAM request construction; safe upstream errors; concurrency and rate limits; request-size bounds; split SSE events; incomplete-stream rejection; documented SAM mask decoding; empty-result handling; frame-index and source-size mismatch rejection; pre-decoder allocation limits; task-specific targeting despite unrelated model selections; appearance/state separation; crop bounds, role, byte and dimension binding; original-plus-crop request construction; crop-to-source geometry mapping.
 - Expanded Chrome checks pass with mocked HTTP responses: explicit analysis only, missing-key disabled state, frozen overlays, model text rendered as text, separate operator review, unclear-review denominator, failure retry, request-binding rejection, frame-linked JSON export, cancellation on case reset, responsive camera panels at 390/768/1440 pixels; visible-miss review accounting; drag and numeric crop selection; crop-hash mismatch rejection; mapped overlay coordinates and toggles; distinct-image counts; region reset on task changes.
 - The published app contains no mock response mode. Fixtures exist only in tests.
 - The production Worker build passes. Live API integration is checked below; real-camera accuracy remains untested.
@@ -41,6 +41,18 @@ The reported reference-image analyses showed Muse describing the pump and valves
 - Focused inspections now request their own SAM component. Main/bypass roles are separate, with identity explicitly unverified.
 - Per-component reviews preserve visible misses and incorrect regions in the localization denominator. The summary counts distinct image hashes separately from repeated analyses.
 - A live original-plus-crop browser check passed with a 180 × 180 synthetic crop. Muse abstained (`usable: false`, physical state unknown), and the targeted pump SAM request completed with zero regions. Review, crop-bound export, and unchanged simulation state passed. This run took 11,667 ms and made two model calls; it validates transport, not a successful pump detection.
+
+## Full-frame role-association correction
+
+The user's October 18 reports exposed three reproducible application defects: the lower component selector did not change full-frame requests, generic valve results were labeled with the requested role, and scene mode silently covered only two selected roles. The reference also exposed model instability in handle descriptions and pump/outlet segmentation misses. Prior API smoke tests did not establish semantic accuracy.
+
+- Both selectors now change the same task and clear stale displays; full-scene coverage includes all six roles, with one shared valve request.
+- Tests cover separate main/bypass association, absent/competing/oversized grounding boxes, T-handle abstention, invalid/out-of-crop proposals, and deduplicated scene requests.
+- Browser regressions passed selector-to-request binding, stale-overlay clearing, manual marking with AI overlays hidden, numeric/drag coordinates, cancellation, and repeated-claim conflict display. Review and simulation regressions also passed.
+- One live full-frame check on the supplied screenshot (including its surrounding UI) completed in 29,748 ms, with six model calls. Both valve masks were assigned to different roles, the outlet received a mask, and seven of eight tube regions matched the proposed tubing bounds. Two raw candidates remained unassigned. Both handles were described as T-shaped with unknown direction.
+- A separate 185 × 185 pump-crop check completed in 16,325 ms with two model calls. The crop coordinates/hash were returned correctly; Muse proposed a pump box, while SAM again returned zero masks. Manual region selection changes the input but does not guarantee recognition.
+- Two additional standalone SAM prompts, `electric water pump` and `electric motor`, also returned zero regions on the supplied screenshot. No prompt change is claimed to solve the pump miss.
+- SAM still returned no pump or reservoir mask in the full-frame run. Muse supplied approximate location boxes instead, explicitly distinguished from masks. This is a remaining segmentation limitation, not a successful SAM detection. The screenshot was a debugging input, not an independent physical-rig test or a calibrated benchmark.
 
 ## First real-camera evaluation, after assembling the rig
 

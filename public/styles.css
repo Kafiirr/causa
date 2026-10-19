@@ -57,3 +57,8 @@
 #perception-result h4 { font-size: 18px; line-height: 1.45; margin: 12px 0; }
 .perception-panel .button { white-space: normal; }
 @media(max-width: 600px) { .perception-panel { padding: 16px; } .perception-heading .text-button { font-size: 12px; } }
+
+.muse-box { fill: none; stroke: #44b7e3; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
+.unresolved-box { fill: none; stroke: #aaa; stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+#mark-instruction, .perception-panel .claim-conflict { padding: 12px; background: #fff0d2; border-left: 3px solid #bc781f; color: #664611; }
+.frame-stage img { user-select: none; -webkit-user-drag: none; }

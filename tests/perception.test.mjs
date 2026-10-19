@@ -1,15 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { associateRegions, groundedBox } from '../server/grounding.mjs';
 import { deflateSync } from 'node:zlib';
 import { validateFrame, validateAssessment, createPerceptionHandler, decodeSegmentation, responseEvents } from '../server/perception.mjs';
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const input = (extra = {}) => ({ caseId:'case1', frameId:'frame1', requestId:'request1', source:'camera', capturedAt:new Date().toISOString(), task:'valve', width:1, height:1, image, ...extra });
-const observation = (extra = {}) => ({ summary:'Main valve visible', usable:true, limitations:['The image cannot establish flow.'], outcome:'open', reason:'The labeled main valve appears open.', components:[{component:'main_valve',observation:'Visible handle',visibility:'visible',orientation:'parallel'}], segment:['main_valve'], ...extra });
+const observation = (extra = {}) => ({ summary:'Main valve visible', usable:true, limitations:['The image cannot establish flow.'], outcome:'open', reason:'The labeled main valve appears open.', components:[{component:'main_valve',observation:'Visible handle',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}], segment:['main_valve'], ...extra });
 const spark = (value = observation()) => Response.json({ choices:[{finish_reason:'stop',message:{content:JSON.stringify(value)}}], usage:{prompt_tokens:100,completion_tokens:50} });
 const request = (body = input(), headers = {}) => new Request('https://causa.test/api/perception/analyze', { method:'POST', headers:{origin:'https://causa.test','content-type':'application/json','oai-authenticated-user-id':'owner',...headers}, body:JSON.stringify(body) });
 const env = { MODEL_API_KEY:'test-key-not-real' };
 const handler = options => createPerceptionHandler({ rateBuckets:new Map(), ...options });
+
+test('two generic valve masks associate to distinct labeled boxes, never the requested role by default',()=>{
+  const obj=(id,y)=>({objectId:id,box:{x1:40,y1:y,x2:60,y2:y+10},mask:{width:21,height:11,path:'M0 0Z'}});
+  const claims=[{component:'main_valve',grounding:{box:{x1:30,y1:10,x2:70,y2:40}}},{component:'bypass_valve',grounding:{box:{x1:30,y1:60,x2:70,y2:90}}}];
+  const result=associateRegions([obj('a',20),obj('b',70)],claims,'valve');
+  assert.deepEqual(result.assigned.get('main_valve').map(o=>o.objectId),['a']);
+  assert.deepEqual(result.assigned.get('bypass_valve').map(o=>o.objectId),['b']);
+  // No boxes, competing boxes, or a single box spanning both valves must abstain.
+  assert.equal(associateRegions([obj('a',20)],[],'valve').unresolved.length,1);
+  assert.equal(associateRegions([obj('a',20)],[claims[0],{...claims[1],grounding:claims[0].grounding}],'valve').assigned.size,0);
+  assert.equal(associateRegions([obj('a',20),obj('b',70)],[{...claims[0],grounding:{box:{x1:0,y1:0,x2:100,y2:100}}}],'valve').assigned.size,0);
+});
+test('T handles abstain on direction; unlabeled valves and out-of-crop boxes cannot ground a role',()=>{
+  const claim={...observation().components[0],handleType:'t_handle',orientation:'perpendicular'};
+  assert.equal(validateAssessment(observation({components:[claim]}),'valve').components[0].orientation,'unknown');
+  assert.equal(groundedBox({...claim,identityBasis:'visual_context'},{width:100,height:100},true),null);
+  assert.equal(groundedBox({...claim,box:[600,600,900,900]},{width:100,height:100,focus:{component:'main_valve',x:0,y:0,width:20,height:20}},true),null);
+  assert.throws(()=>validateAssessment(observation({components:[{...claim,box:[500,100,200,300]}]}),'valve'));
+});
+test('full-scene coverage checks all six components with a single shared valve request',async()=>{
+  const prompts=[];
+  const gateway=handler({fetcher:async(url,options)=>{
+    const payload=JSON.parse(options.body);
+    if(url.endsWith('/chat/completions'))return spark(observation({segment:['reservoir']}));
+    prompts.push(payload.input[0].content[0].text);return new Response('mock');
+  },decode:async()=>[]});
+  const result=await(await gateway(request(input({task:'scene'})),env)).json();
+  assert.equal(result.segmentations.length,6);assert.equal(prompts.length,5);assert.equal(prompts.filter(p=>p==='valve').length,1);
+  assert.equal(result.usage.modelCalls,6);
+});
 
 // Real small PNGs, including valid CRCs, for original/crop dimension checks.
 function png(width, height) {
@@ -36,19 +67,19 @@ test('appearance never establishes physical state, and invalid component claims 
   const result=validateAssessment(observation(),'valve');
   assert.equal(result.components[0].orientation,'parallel');
   assert.deepEqual(result.claims,{valveState:'unknown',pumpOperation:'unknown',flow:'unknown'});
-  assert.equal(validateAssessment(observation({components:[{component:'pump',observation:'Black housing',visibility:'visible',orientation:'parallel'}]}),'pump').components[0].orientation,'unknown');
+  assert.equal(validateAssessment(observation({components:[{component:'pump',observation:'Black housing',visibility:'visible',orientation:'parallel',handleType:'lever',box:[0,0,1000,1000],identityBasis:'readable_label',identityEvidence:'03 MAIN VALVE'}]}),'pump').components[0].orientation,'unknown');
   for(const components of [[...observation().components,...observation().components],[{component:'pump',observation:'Pump'}]])assert.throws(()=>validateAssessment(observation({components}),'pump'));
 });
 test('crop binds its own bytes and dimensions, uses context, and maps masks to source pixels',async()=>{
   const focus={component:'pump',x:12,y:20,width:24,height:16,image:png(24,16)};
   const body=input({task:'pump',width:64,height:64,image:png(64,64),focus});
   const calls=[];
-  const gateway=handler({fetcher:async(url,options)=>{calls.push(JSON.parse(options.body));return url.endsWith('/chat/completions')?spark():new Response('mock');},decode:async(_response,frame)=>{
+  const gateway=handler({fetcher:async(url,options)=>{calls.push(JSON.parse(options.body));return url.endsWith('/chat/completions')?spark(observation({components:[{...observation().components[0],component:'pump',box:[188,313,562,562]}]})):new Response('mock');},decode:async(_response,frame)=>{
     assert.equal(frame.width,24);assert.equal(frame.height,16);
     return [{objectId:'0',box:{x1:1,y1:2,x2:22,y2:14},mask:{width:22,height:13,path:'M0 0L22 0L22 13Z'}}];
   }});
   const response=await gateway(request(body),env);assert.equal(response.status,200);const result=await response.json();
-  assert.equal(result.schema,'causa.perception.v2');
+  assert.equal(result.schema,'causa.perception.v3');
   assert.equal(calls[0].messages[1].content[1].image_url.url,body.image);
   assert.equal(calls[0].messages[1].content[3].image_url.url,focus.image);
   assert.equal(calls[1].input[0].content[1].image_url,focus.image);
@@ -115,14 +146,14 @@ test('live-observed reasoning budget exhaustion is explicit and never starts SAM
 });
 test('concurrent rejections do not unlock the active analysis', async () => {
   let release; const waiting=new Promise(resolve => {release=resolve;}); let calls=0;
-  const gateway=handler({fetcher:async () => {calls++; await waiting; return spark(observation({segment:[]}));}});
+  const gateway=handler({fetcher:async () => {calls++; await waiting; return spark(observation({usable:false,segment:[]}));}});
   const first=gateway(request(input({task:'scene'})),env);
   while(calls===0) await new Promise(resolve => setTimeout(resolve,1));
   for(let i=0;i<2;i++) {const response=await gateway(request(),env); assert.equal(response.status,429); assert.equal((await response.json()).error.code,'ANALYSIS_IN_PROGRESS');}
   release(); assert.equal((await first).status,200); assert.equal(calls,1);
 });
 test('four-per-minute local rate limit and expiry', async () => {
-  let now=Date.now(); const gateway=handler({clock:()=>now,fetcher:async()=>spark(observation({segment:[]}))});
+  let now=Date.now(); const gateway=handler({clock:()=>now,fetcher:async()=>spark(observation({usable:false,segment:[]}))});
   for(let i=0;i<4;i++) assert.equal((await gateway(request(input({task:'scene'})),env)).status,200);
   assert.equal((await gateway(request(),env)).status,429); now+=61000;
   assert.equal((await gateway(request(input({task:'scene'})),env)).status,200);
