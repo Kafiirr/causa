@@ -83,3 +83,18 @@ These checks establish schema/API compatibility, bounded assignment, honest abst
 - Browser regression passed, including a 1680 × 1050 upload retaining its dimensions, proposed crop selection causing no automatic Meta request, explicit analysis carrying `selectionMethod=muse_proposal`, crop clearing restoring the prior full-frame result, and the existing simulation/responsive checks.
 - Two standalone concept probes on the supplied black-bench screenshot returned zero `motor` masks and three `hose` masks. These offered no demonstrated improvement over the existing concepts, so no automatic alternate-prompt retries were added.
 - A focused live pump inspection using the revised image pipeline completed in 12,933 ms with two model calls. Muse supplied a labeled pump location proposal; SAM returned zero pump masks. Higher retained detail is an input-quality improvement, not evidence that pump segmentation is solved.
+
+## Placard interpretation and incomplete tubing overlays — 2026-10-20
+
+The supplied screenshots exposed distinct failures: label panels rejected as UI overlays, valve handle masks excluded by approximate body bounds, and detected tube sections hidden as unresolved. Corrections accept scene-label evidence as unverified role proposals, use handle boxes and bounded tentative edge matches, combine separate tubing sections without filling gaps, and show unresolved tubing masks in gray by default.
+
+A two-call SAM comparison on the third supplied screenshot found eight `plastic tube` regions and six `pipe` regions; the latter included a lower elbow absent from the first set. The application now uses both concepts and deduplicates strongly overlapping boxes, with original detections preserved. This adds one request for tubing/full-scene inspection.
+
+Live debugging checks used screenshots already containing older overlays, not clean originals or physical-rig ground truth:
+
+- Initial second-image check: 28,849 ms, seven calls; bypass received one mask, main label grounding remained unresolved, and three of eleven combined tube candidates were assigned.
+- Initial third-image check: 22,077 ms, seven calls; six of ten tube candidates were assigned, while both valve label grounds were withheld.
+- After adding explicit scene-label provenance, the third-image check took 19,780 ms, seven calls. Both valve roles received label-grounded proposals. Main received a mask; bypass failed the strict overlap threshold. Three of ten tube candidates were assigned and the rest remained gray unresolved candidates, demonstrating that proposal variability still affects assignment.
+- Replaying those stored live valve detections after the bounded edge-match correction assigned exactly one mask to each valve: main by direct box overlap, bypass as a tentative edge match. No new model call was required for this deterministic replay; it is not a fresh end-to-end live success claim.
+
+Gateway tests cover handle-only anchors, ambiguity, union area without double-counting/gap filling, complementary-concept deduplication/provenance, partial upstream failure, scene-label evidence, and bounded valve edge matching. Browser checks cover default-gray unresolved tube masks and their toggle separately from associated-mask counts. Pump masks and complete tubing/valve coverage remain unresolved model limitations.

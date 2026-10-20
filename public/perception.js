@@ -60,7 +60,7 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
     $('region-mark').setAttribute('aria-pressed',String(selecting));
     $('mark-instruction').hidden=!selecting;
     const target=TARGETS[$('perception-task').value];
-    $('analysis-scope').textContent = `${target ? LABELS[target] : 'All six components'} · ${focus ? 'manual crop + full-frame context' : 'automatic full-frame inspection'} · up to ${target ? 2 : 6} model calls. Changing controls does not call Meta. Dashed = Muse proposal; filled = SAM mask; white = your crop.`;
+    $('analysis-scope').textContent = `${target ? LABELS[target] : 'All six components'} · ${focus ? 'manual crop + full-frame context' : 'automatic full-frame inspection'} · up to ${target==='tube' ? 3 : target ? 2 : 7} model calls. Changing controls does not call Meta. Dashed = Muse proposal; filled = SAM mask; white = your crop.`;
     $('region-mark').textContent = selecting ? 'Cancel marking' : 'Mark component region';
     $('frame-overlay').classList.toggle('selecting-region',selecting);
     if (selected) $('frame-overlay').setAttribute('viewBox',`0 0 ${selected.width} ${selected.height}`);
@@ -98,14 +98,18 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       const card = node('article','','component-observation'); card.dataset.component = component;
       card.append(node('h4',LABELS[component]));
       card.append(node('p',`Visibility: ${(claim?.visibility || 'unknown').replaceAll('_',' ')}. ${claim?.observation || 'Muse did not provide a description for this target.'}`));
+      if(claim?.identityBasis==='scene_label')card.append(node('p',`Role proposed from an in-scene label or annotation: ${claim.identityEvidence}. Label authenticity and physical identity are unverified.`,'perception-note'));
       if (component.endsWith('_valve')) card.append(node('p',`Handle type: ${(claim?.handleType || 'unknown').replaceAll('_',' ')} · direction: ${claim?.orientation || 'unknown'}. T-shaped/round handles do not provide a reliable lever direction. Physical state remains unknown.`));
       const conflicts=conflictingClaims(analyses,result,component);
       if(conflicts.length)card.append(node('p',`Repeated analyses disagree on ${conflicts.join(' and ')} for this exact image and scope. Treat this claim as unresolved.`, 'claim-conflict'));
       const regionText = !segmentation ? 'Not requested for this component.' : segmentation.status === 'failed' ? 'Unavailable. Absence has not been established.' : segmentation.objects.length ? `${segmentation.objects.length} SAM mask(s) associated with a Muse location proposal. Identity and full-component coverage need review.` : segmentation.rawMatches ? `SAM found ${segmentation.rawMatches} concept match(es), but none could be assigned to this component. Role unresolved.` : 'No matching region found by SAM. This does not establish that the component is absent.';
       card.append(node('p',`SAM localization: ${regionText}`,'segmentation-status'));
+      if(segmentation?.concepts)card.append(node('p',`Tubing search: ${segmentation.concepts.map(c=>`${c.prompt}: ${c.status==='failed' ? 'unavailable' : c.count+' raw matches'}`).join(' · ')}. Overlapping detections are combined; these counts are not coverage scores.`));
+      if(segmentation?.partialFailure)card.append(node('p','One tubing concept request failed. Available masks are shown, but this inspection is incomplete.','claim-conflict'));
+      if(segmentation?.objects.some(o=>o.association==='muse_box_edge_candidate'))card.append(node('p','Tentative edge match: this small valve region overlaps an approximate Muse box edge. Check its role and coverage carefully.','perception-note'));
       const partial=segmentation?.objects.filter(o=>o.extent==='likely_handle_only'||o.extent==='likely_partial_component') || [];
       if(partial.length)card.append(node('p',partial.some(o=>o.extent==='likely_handle_only') ? 'Coverage warning: mask appears limited to the handle. The valve body is not established by this mask.' : 'Coverage warning: mask appears to cover only part of the valve assembly.', 'claim-conflict'));
-      if(component==='tube' && segmentation?.status==='completed' && segmentation.proposalCoverage)card.append(node('p',`Tube sections: ${segmentation.proposalCoverage.supported}/${segmentation.proposalCoverage.proposed} Muse proposals have associated SAM masks. This counts supported proposals, not pixel coverage; the complete tubing network remains unverified.`));
+      if(component==='tube' && segmentation?.status==='completed' && segmentation.proposalCoverage)card.append(node('p',`Tube sections: ${segmentation.proposalCoverage.supported}/${segmentation.proposalCoverage.proposed} Muse proposals have associated SAM masks. One mask can support more than one proposal. This counts supported proposals, not pixel coverage; the complete tubing network remains unverified.`));
       if(claim?.grounding){
         card.append(node('p',`Muse location: approximate box proposal(s). ${claim.grounding.evidence} This is independent of SAM success.`));
         const boxGroups=(claim.grounding.boxes || [claim.grounding.box]).map(box=>drawBox(box,`${LABELS[component]} · Muse proposal`,component,'muse-box'));
@@ -140,11 +144,20 @@ export function createPerception({ getCaseId, getFrames, onChange, toast }) {
       }
       section.append(card);
     }
-    if(result.unresolvedRegions?.length){
-      const label=node('label','','overlay-toggle');const toggle=node('input');toggle.type='checkbox';
-      label.append(toggle,document.createTextNode(`Show ${result.unresolvedRegions.length} unassigned SAM candidate(s) — roles unresolved`));section.append(label);
-      const groups=result.unresolvedRegions.map(object=>drawBox(object.box,`${object.prompt} · unresolved`,null,'unresolved-box'));
-      groups.forEach(g=>g.style.display='none');toggle.addEventListener('change',()=>groups.forEach(g=>g.style.display=toggle.checked?'':'none'));
+    const unresolved=result.unresolvedRegions || [];
+    const tubeUnresolved=componentIds.includes('tube') ? unresolved.filter(o=>o.prompt===COMPONENTS.tube) : [];
+    const otherUnresolved=unresolved.filter(o=>!tubeUnresolved.includes(o));
+    for(const [objects,isTube] of [[tubeUnresolved,true],[otherUnresolved,false]]){
+      if(!objects.length)continue;
+      const label=node('label','','overlay-toggle');const toggle=node('input');toggle.type='checkbox';toggle.checked=isTube;
+      label.append(toggle,document.createTextNode(isTube ? `Show ${objects.length} unassigned tubing candidate(s) in gray — not matched to Muse sections` : `Show ${objects.length} unassigned SAM candidate(s) — roles unresolved`));section.append(label);
+      if(isTube)section.append(node('p','Gray tubing candidates were detected by SAM but could not be matched to the proposed sections. They remain unverified and are excluded from associated-mask counts.','perception-note'));
+      const groups=objects.map(object=>{
+        const group=drawBox(object.box,`${object.prompt} · unresolved`,null,'unresolved-box');
+        if(isTube && object.mask){const {x1,y1,x2,y2}=object.box;const mask=document.createElementNS(svgNS,'path');mask.setAttribute('d',object.mask.path);mask.setAttribute('transform',`translate(${x1} ${y1}) scale(${(x2-x1+1)/object.mask.width} ${(y2-y1+1)/object.mask.height})`);mask.setAttribute('class','sam-mask');group.append(mask);}
+        return group;
+      });
+      groups.forEach(g=>g.style.display=toggle.checked?'':'none');toggle.addEventListener('change',()=>groups.forEach(g=>g.style.display=toggle.checked?'':'none'));
     }
     renderFocus();
     const limits=node('ul'); for(const text of [...result.assessment.limitations,...result.limitations])limits.append(node('li',text));section.append(limits);

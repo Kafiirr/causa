@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { associateRegions, groundedBox } from '../server/grounding.mjs';
+import { associateRegions, groundedBox, mergeConceptObjects } from '../server/grounding.mjs';
 import { deflateSync } from 'node:zlib';
 import { validateFrame, validateAssessment, createPerceptionHandler, decodeSegmentation, responseEvents } from '../server/perception.mjs';
 
@@ -38,8 +38,8 @@ test('full-scene coverage checks all six components with a single shared valve r
     prompts.push(payload.input[0].content[0].text);return new Response('mock');
   },decode:async()=>[]});
   const result=await(await gateway(request(input({task:'scene'})),env)).json();
-  assert.equal(result.segmentations.length,6);assert.equal(prompts.length,5);assert.equal(prompts.filter(p=>p==='valve').length,1);
-  assert.equal(result.usage.modelCalls,6);
+  assert.equal(result.segmentations.length,6);assert.equal(prompts.length,6);assert.equal(prompts.filter(p=>p==='valve').length,1);
+  assert.equal(result.usage.modelCalls,7);
 });
 
 // Real small PNGs, including valid CRCs, for original/crop dimension checks.
@@ -219,4 +219,59 @@ test('proposal-assisted crop provenance is retained without changing operator-se
   const frame=await validateFrame(input({task:'pump',width:100,height:100,image:png(100,100),focus:{component:'pump',x:10,y:10,width:20,height:20,image:png(20,20),selectionMethod:'muse_proposal'}}));
   assert.equal(frame.focus.source,'operator_selected');
   assert.equal(frame.focus.selectionMethod,'muse_proposal');
+});
+
+test('labeled valve handles can match outside incomplete body proposals without swapping roles',()=>{
+  const main={component:'main_valve',grounding:{box:{x1:40,y1:30,x2:80,y2:60},handleBox:{x1:40,y1:10,x2:80,y2:20}}};
+  const bypass={component:'bypass_valve',grounding:{box:{x1:40,y1:130,x2:80,y2:160},handleBox:{x1:40,y1:110,x2:80,y2:120}}};
+  const objects=[{objectId:'m',box:main.grounding.handleBox},{objectId:'b',box:bypass.grounding.handleBox}];
+  const result=associateRegions(objects,[main,bypass],'valve');
+  assert.equal(result.assigned.get('main_valve')[0].association,'muse_handle_overlap');
+  assert.equal(result.assigned.get('main_valve')[0].extent,'likely_handle_only');
+  assert.equal(result.assigned.get('bypass_valve')[0].objectId,'b');
+  assert.equal(associateRegions([objects[0]],[main,{...bypass,grounding:main.grounding}],'valve').assigned.size,0);
+});
+test('tube matching uses actual union area, never double-counts overlaps or fills gaps',()=>{
+  const object={objectId:'tube',box:{x1:0,y1:0,x2:99,y2:9}};
+  const claim=boxes=>({component:'tube',grounding:{box:boxes[0],boxes}});
+  const a={x1:0,y1:0,x2:49,y2:9},b={x1:50,y1:0,x2:99,y2:9};
+  assert.equal(associateRegions([object],[claim([a,b])],'plastic tube').assigned.get('tube')[0].association,'muse_section_union_overlap');
+  assert.equal(associateRegions([object],[claim([a,a])],'plastic tube').assigned.size,0);
+  assert.equal(associateRegions([object],[claim([{...a,x2:20},{...b,x1:80}])],'plastic tube').assigned.size,0);
+});
+test('complementary tube concepts deduplicate overlapping geometry and preserve raw provenance',()=>{
+  const box={x1:0,y1:0,x2:99,y2:9},elbow={x1:120,y1:0,x2:129,y2:30};
+  const detections=[{prompt:'plastic tube',objects:[{objectId:'0',box}]},{prompt:'pipe',objects:[{objectId:'0',box},{objectId:'1',box:elbow}]}];
+  const combined=mergeConceptObjects(detections);
+  assert.equal(combined.length,2);assert.deepEqual(combined[0].sourcePrompts,['plastic tube','pipe']);
+  assert.equal(detections[1].objects.length,2);assert.notEqual(combined[0].objectId,combined[1].objectId);
+});
+test('one tubing concept failing preserves the other result and marks partial failure',async()=>{
+  const claim={...observation().components[0],component:'tube',regions:[[0,0,1000,1000]],handleType:'unknown'};
+  const gateway=handler({fetcher:async(url,options)=>{
+    if(url.endsWith('/chat/completions'))return spark(observation({components:[claim]}));
+    return JSON.parse(options.body).input[0].content[0].text==='pipe' ? new Response('mock') : new Response('unavailable',{status:500});
+  },decode:async()=>[{objectId:'0',box:{x1:0,y1:0,x2:0,y2:0},mask:{width:1,height:1,path:'M0 0Z'}}]});
+  const result=await(await gateway(request(input({task:'tube'})),env)).json();
+  assert.equal(result.segmentations[0].status,'completed');assert.equal(result.segmentations[0].partialFailure,true);
+  assert.equal(result.segmentations[0].objects.length,1);assert.equal(result.usage.modelCalls,3);
+});
+
+test('readable scene annotations support candidate roles without claiming physical identity',()=>{
+  const claim={...observation().components[0],identityBasis:'scene_label',identityEvidence:'MAIN VALVE panel adjacent to this valve; mounting unknown'};
+  const result=validateAssessment(observation({components:[claim]}),'valve');
+  assert.equal(result.components[0].grounding.basis,'scene_label');
+  assert.equal(result.components[0].identityEvidence,claim.identityEvidence);
+  assert.equal(result.claims.valveState,'unknown');
+  assert.equal(groundedBox({...claim,identityBasis:'visual_context'},{width:100,height:100},true),null);
+});
+
+test('small valve masks at approximate proposal edges are tentative, bounded, and ambiguity-safe',()=>{
+  const claim={component:'bypass_valve',grounding:{box:{x1:527,y1:452,x2:657,y2:530}}};
+  const object={objectId:'handle',box:{x1:556,y1:441,x2:603,y2:462}};
+  const match=associateRegions([object],[claim],'valve').assigned.get('bypass_valve')[0];
+  assert.equal(match.association,'muse_box_edge_candidate');assert.equal(match.extent,'likely_partial_component');
+  const far={...object,box:{...object.box,y1:410,y2:431}};
+  assert.equal(associateRegions([far],[claim],'valve').assigned.size,0);
+  assert.equal(associateRegions([object],[claim,{...claim,component:'main_valve'}],'valve').assigned.size,0);
 });

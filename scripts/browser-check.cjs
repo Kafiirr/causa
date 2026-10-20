@@ -108,6 +108,8 @@ const fs = require('node:fs/promises');
     if(currentMode==='sections'){
       result.assessment.components[0].grounding={box:{x1:20,y1:20,x2:100,y2:40},boxes:[{x1:20,y1:20,x2:100,y2:40},{x1:20,y1:70,x2:100,y2:90}],evidence:'Two sections'};
       result.segmentations[0].proposalCoverage={proposed:2,supported:1,completeComponentVerified:false};
+      result.segmentations[0].concepts=[{prompt:'plastic tube',status:'completed',count:1},{prompt:'pipe',status:'completed',count:1}];
+      result.unresolvedRegions=[{prompt:'plastic tube',objectId:'pipe:0',box:{x1:120,y1:20,x2:150,y2:50},mask:{width:1,height:1,path:'M0 0L1 0L1 1Z'},reason:'no_supported_component_box'}];
     }
     if(currentMode==='grounding'){
       result.assessment.components[0].grounding={box:{x1:20,y1:20,x2:100,y2:100},source:'muse_candidate',basis:'visual_context',evidence:'Test location'};
@@ -256,6 +258,11 @@ const fs = require('node:fs/promises');
   mode='sections';await page.locator('#analyze-frame').click();await page.waitForSelector('[name="grounding_tube"]');
   assert.equal(await page.locator('.muse-box').count(),2);
   assert.match(await page.locator('.component-observation').textContent(),/1\/2 Muse proposals/);
+  assert.equal(await page.locator('.unresolved-box').isVisible(),true);
+  assert.equal(await page.locator('g[data-component="unresolved"] .sam-mask').count(),1);
+  assert.match(await page.locator('.component-observation').textContent(),/pipe: 1 raw matches/);
+  await page.getByLabel(/Show 1 unassigned tubing/).uncheck();
+  assert.equal(await page.locator('.unresolved-box').isVisible(),false);
   await page.getByLabel('Show approximate tubing Muse box').check();
   assert.equal(await page.locator('.muse-box:visible').count(),2);
   await page.getByLabel('Show approximate tubing Muse box').uncheck();

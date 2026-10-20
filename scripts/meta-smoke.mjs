@@ -7,7 +7,7 @@ import { validateFrame, imageDimensions, analyzeFrame, decodeSegmentation, MODEL
 const args=process.argv.slice(2);
 const imagePath=args[args.indexOf('--image')+1];
 if (!args.includes('--allow-live') || !args.includes('--image') || !imagePath) {
-  console.error('Usage: node scripts/meta-smoke.mjs --allow-live --image <JPEG-or-PNG> [--sam]\nSends the specified image to Meta. Uses one Muse call and up to two SAM calls; --sam adds one standalone SAM call only when Muse selects no components.');
+  console.error('Usage: node scripts/meta-smoke.mjs --allow-live --image <JPEG-or-PNG> [--sam]\nSends the specified image to Meta. Uses one Muse call and up to six SAM calls; --sam adds one standalone SAM call only when Muse selects no components.');
   process.exit(2);
 }
 const root=fileURLToPath(new URL('../',import.meta.url));
