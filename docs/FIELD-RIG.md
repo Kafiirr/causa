@@ -22,4 +22,6 @@ Before using real fault procedures, check the pump's dry-running and blocked-flo
 
 Mark components by stable identity. An operator must confirm connections during setup. Document the visible observations for each allowed test, how to return the system to baseline, and when to stop or report an unresolved result. Do not claim that a schematic or segmentation mask establishes actual flow.
 
-The prototype uses a demonstration threshold of at least 10 mL/s across at least 10 seconds. Establish the real threshold from repeated healthy-rig measurements before using it in physical trials.
+Simulation uses a demonstration threshold of at least 10 mL/s across at least 10 seconds. Establish the real threshold from repeated healthy-rig measurements before using it in physical trials.
+
+Guided physical mode requires a case-specific flow target and interval (at least 10 seconds), fixed before testing. Notes, configuration confirmations and manually recorded measurements are required; no simulated values are supplied. Frame/review links are optional context. An operator-reported pass is not independent instrument verification.

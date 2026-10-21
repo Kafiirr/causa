@@ -1,3 +1,4 @@
+import { renderPhysicalStep, solutionMarkup, refreshPhysicalReferences } from './physical.js';
 import { frameSize } from './frame-preparation.js';
 import { HYPOTHESES, TESTS, createInvestigation, nextTest, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from './engine.js';
 import { createPerception } from './perception.js';
@@ -87,7 +88,19 @@ function setFlow(path, flowing) {
   $('cup-water').setAttribute('height', flowing ? '45' : '3');
 }
 
+function physicalReferences() {
+  const records = perception.export();
+    return attachments.map(f => ({ frameId: f.id, source: f.source, capturedAt: f.at, analysisIds: records.analyses.filter(a=>a.frame.id===f.id).map(a=>a.id), reviewIds: records.reviews.filter(r=>r.frameId===f.id).map(r=>r.analysisId), sha256: records.analyses.find(a=>a.frame.id===f.id)?.frame.sha256 || null, purpose: 'reference_context_only' }));
+}
+
 function render() {
+  const physical = state.mode === 'physical';
+  document.querySelector('.mode-pill').textContent = physical ? 'Physical investigation' : 'Simulation workspace';
+  document.querySelector('.hero-aside > p').textContent = physical ? 'Your rig. Your observations. A measured repair check.' : 'Practice a complete investigation with simulated evidence.';
+  document.querySelector('.engine-note').textContent = physical ? 'Four supported causes · operator-recorded evidence' : 'Deterministic planner · simulated observations';
+  $('solution-summary').innerHTML = solutionMarkup(state);
+  if (physical) { setFlow('main', false); $('flow-status').textContent = 'Reference schematic · no live sensor feed'; }
+  if (!$('digital-view').hidden) $('feed-label').textContent = physical ? 'REFERENCE SCHEMATIC' : 'SIMULATED FEED';
   const observations = state.events.filter(e => e.type === 'observation');
   const successfulObservations = observations.filter(e => e.outcome !== 'unknown');
   const isolated = state.candidates.length === 1;
@@ -97,7 +110,8 @@ function render() {
   $('metric-tests').textContent = String(observations.length).padStart(2, '0');
   $('metric-check').innerHTML = `${complete ? 'Passed' : state.phase === 'verification_failed' ? 'Failed' : 'Pending'}<span>${complete ? '✓' : '↗'}</span>`;
   $('metric-check').classList.toggle('verified', complete);
-  $('metric-check-caption').textContent = complete ? '120 mL / 10 s · simulated' : 'evidence before completion';
+  const measurement = state.events.findLast(e => e.type === 'verification');
+  $('metric-check-caption').textContent = measurement ? `${measurement.volumeMl} mL / ${measurement.seconds} s · ${physical ? 'operator reported' : 'simulated'}` : 'evidence before completion';
   $('hypothesis-count').textContent = isolated ? '1 supported' : `${state.candidates.length} possible`;
   $('experiment-number').textContent = String(observations.length + 1).padStart(2, '0');
   $('stage-observe').className = successfulObservations.length ? 'finished' : 'current';
@@ -109,7 +123,10 @@ function render() {
   }).join('');
   $('experiment-actions').replaceChildren();
   const lastObservation = observations.at(-1);
-  if (state.phase === 'investigating' || state.phase === 'awaiting_observation') {
+  if (physical) {
+    const references = physicalReferences();
+    renderPhysicalStep({ state, references, update: next => { state=next; render(); }, selectComponent, predictions: predictionsMarkup, showEvidence: ()=>showPage('evidence'), newCase: ()=>$('case-dialog').showModal(), inspect: ()=>setView('camera') });
+  } else if (state.phase === 'investigating' || state.phase === 'awaiting_observation') {
     const committed = state.phase === 'awaiting_observation';
     const testId = committed ? state.pending.testId : nextTest(state);
     if (!testId) { $('experiment-content').innerHTML = '<h3>More evidence needed.</h3><p class="experiment-description">The supported tests cannot distinguish the remaining explanations. Start a new case to review the assumptions.</p>'; action('Start a new case', () => $('case-dialog').showModal()); return; }
@@ -168,6 +185,12 @@ function render() {
 }
 
 function describeEvent(e) {
+  const physical = e.source === 'operator_report';
+  const notes = physical ? [e.note, ...(e.references || []).map(r=>`Reference frame: ${r.frameId} · ${r.reviewIds.length} linked reviews · context only`)].filter(Boolean) : undefined;
+  if (e.type === 'started' && physical) return {title:'Physical investigation opened', summary:e.observation, details:[...e.assumptions, e.setup.note, `Agreed criterion: ${e.criterion.minRate} mL/s for at least ${e.criterion.minSeconds} seconds.`]};
+  if (e.type === 'observation' && physical) return {title:e.outcome === 'unknown' ? 'Observation unresolved' : TESTS[e.testId].outcomes[e.outcome], summary:`${e.remainingCandidates.length} supported possibilities. Operator report; configuration restored.${e.measurement ? ` Collected ${e.measurement.volumeMl} mL in ${e.measurement.seconds} seconds.` : ''}`, details:notes};
+  if (e.type === 'repair_attempted' && physical) return {title:e.instruction, summary:'Operator reports a repair attempt. Functional check still required.',details:notes};
+  if (e.type === 'verification' && physical) return {title:e.passed ? 'Reported functional check passed' : 'Functional check failed',summary:`Operator recorded ${e.volumeMl} mL over ${e.seconds} seconds, bypass closed. ${e.criterion}`,details:notes};
   if (e.type === 'started') return { title: 'Investigation opened', summary: e.observation, details: e.assumptions };
   if (e.type === 'prediction_committed') return { title: `Prediction committed: ${TESTS[e.testId].name.toLowerCase()}`, summary: 'Expected outcomes recorded before the observation.', details: Object.entries(e.predictions).map(([id, outcome]) => `${HYPOTHESES[id].name} → ${TESTS[e.testId].outcomes[outcome]}`) };
   if (e.type === 'observation') return { title: e.outcome === 'unknown' ? 'Observation unresolved' : TESTS[e.testId].outcomes[e.outcome], summary: e.outcome === 'unknown' ? 'No hypothesis eliminated. Repeat the observation.' : `${e.remainingCandidates.length} supported ${e.remainingCandidates.length === 1 ? 'possibility' : 'possibilities'}. Source: simulated rig. Test configuration reset afterward.` };
@@ -177,6 +200,8 @@ function describeEvent(e) {
 }
 
 function renderEvidence() {
+  $('evidence-solution').innerHTML = solutionMarkup(state);
+  document.querySelector('.evidence-banner p').textContent = state.mode === 'physical' ? 'Physical observations, repair attempts and measurements are operator-reported. Linked images and model reviews provide context; they do not independently verify a repair.' : 'Diagnostic evidence is simulated. Reference frames, model candidates, and operator reviews are separate records; they do not verify a physical repair.';
   $('evidence-list').innerHTML = state.events.map(e => {
     const description = describeEvent(e);
     return `<article class="evidence-entry"><span class="event-number">${String(e.sequence).padStart(2, '0')}</span><div><span class="event-type">${e.type.replaceAll('_', ' ').toUpperCase()}</span><h3>${escapeHTML(description.title)}</h3><p>${escapeHTML(description.summary)}</p>${description.details ? `<ul>${description.details.map(d => `<li>${escapeHTML(d)}</li>`).join('')}</ul>` : ''}</div><time datetime="${e.at}">${new Date(e.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time></article>`;
@@ -201,13 +226,20 @@ $('export-evidence').addEventListener('click', () => {
 $('new-case').addEventListener('click', () => $('case-dialog').showModal());
 $('close-dialog').addEventListener('click', () => $('case-dialog').close());
 $('case-dialog').addEventListener('click', e => { if (e.target === $('case-dialog')) { const bounds = $('case-dialog').getBoundingClientRect(); if (e.clientX < bounds.left || e.clientX > bounds.right || e.clientY < bounds.top || e.clientY > bounds.bottom) $('case-dialog').close(); } });
+$('case-mode').addEventListener('change', () => {
+  const physical = $('case-mode').value === 'physical';
+  $('physical-setup').hidden = !physical; $('physical-setup').disabled = !physical;
+  $('simulation-setup').hidden = physical; $('fault-select').disabled = physical;
+});
 $('case-form').addEventListener('submit', e => {
   e.preventDefault();
+  let next;
+  try { next = createInvestigation(undefined, $('case-mode').value === 'physical' ? { mode:'physical', setup:{confirmed:$('setup-confirm').checked,note:$('setup-note').value},criterion:{minRate:$('min-rate').valueAsNumber,minSeconds:$('min-seconds').valueAsNumber}} : {}); } catch(error) { toast(error.message); return; }
   operation += 1; busy = false; stopCamera();
-  state = createInvestigation(); rig = new SimulatedRig($('fault-select').value === 'random' ? randomFault() : $('fault-select').value);
+  state = next; rig = state.mode === 'physical' ? null : new SimulatedRig($('fault-select').value === 'random' ? randomFault() : $('fault-select').value);
   attachments = []; perception.reset(); $('camera-thumbnails').replaceChildren();
   $('case-dialog').close(); setFlow('main', false); showPage('lab'); setView('rig'); render();
-  toast('New investigation started. The fault is hidden from the planner.');
+  toast(state.mode === 'physical' ? 'Physical case opened. Record actual observations; no simulated results will be used.' : 'New investigation started. The fault is hidden from the planner.');
 });
 
 function setView(view) {
@@ -216,7 +248,7 @@ function setView(view) {
   $('digital-view').hidden = camera; $('camera-view').hidden = !camera;
   $('view-camera').classList.toggle('selected', camera); $('view-rig').classList.toggle('selected', !camera);
   $('view-camera').setAttribute('aria-pressed', String(camera)); $('view-rig').setAttribute('aria-pressed', String(!camera));
-  $('feed-label').textContent = camera ? 'REFERENCE CAPTURE' : 'SIMULATED FEED';
+  $('feed-label').textContent = camera ? 'REFERENCE CAPTURE' : state.mode === 'physical' ? 'REFERENCE SCHEMATIC' : 'SIMULATED FEED';
   if (!camera) { stopCamera(); perception.cancel(); }
 }
 $('view-rig').addEventListener('click', () => setView('rig'));
@@ -264,7 +296,7 @@ $('camera-capture').addEventListener('click', () => {
   $('evidence-count').textContent = String(state.events.length + attachments.length);
   toast('Reference frame captured. Export it from Evidence.');
 });
-const perception = createPerception({ getCaseId: () => state.id, getFrames: () => attachments, onChange: () => { $('evidence-count').textContent = String(state.events.length + attachments.length); $('camera-capture').disabled = !stream || attachments.length >= 6; }, toast });
+const perception = createPerception({ getCaseId: () => state.id, getFrames: () => attachments, onChange: () => { if (state.mode === 'physical') refreshPhysicalReferences(physicalReferences()); $('evidence-count').textContent = String(state.events.length + attachments.length); $('camera-capture').disabled = !stream || attachments.length >= 6; }, toast });
 window.addEventListener('pagehide', () => { stopCamera(); perception.cancel(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stopCamera(); perception.cancel(); } });
 render();

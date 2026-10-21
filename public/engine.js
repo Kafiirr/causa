@@ -33,11 +33,29 @@ function event(state, type, payload) {
   state.events.push({ sequence: state.events.length + 1, at: new Date().toISOString(), type, ...copy(payload) });
 }
 
-export function createInvestigation(id = globalThis.crypto.randomUUID()) {
-  const state = { schema: 'causa.investigation.v1', id, mode: 'simulation', phase: 'investigating', candidates: Object.keys(HYPOTHESES), pending: null, events: [] };
+export function createInvestigation(id = globalThis.crypto.randomUUID(), options = {}) {
+  const mode = options.mode || 'simulation';
+  requireState(['simulation', 'physical'].includes(mode), 'Unknown investigation mode.');
+  if (mode === 'physical') {
+    requireState(options.setup?.confirmed === true && options.setup?.note?.trim(), 'Confirm the rig topology, initial symptom and single-fault setup.');
+    requireState(Number.isFinite(options.criterion?.minRate) && options.criterion.minRate > 0 && Number.isFinite(options.criterion?.minSeconds) && options.criterion.minSeconds >= 10, 'Set a positive required flow and an interval of at least 10 seconds.');
+  }
+  const state = { schema: 'causa.investigation.v1', id, mode, criterion: copy(options.criterion || { minRate: 10, minSeconds: 10 }), phase: 'investigating', candidates: Object.keys(HYPOTHESES), pending: null, events: [] };
   event(state, 'started', { observation: 'No outlet flow with bypass closed.', assumptions: ['One fault from the four supported causes.', 'Connections match the reviewed rig topology.', 'Tests return the rig to its initial configuration.'] });
+  if (mode === 'physical') {
+    state.setup = copy(options.setup);
+    Object.assign(state.events[0], { source: 'operator_report', setup: copy(options.setup), criterion: copy(state.criterion) });
+  }
   return state;
 }
+
+export function operatorEvidence(state, evidence, resetRequired = false) {
+  if (state.mode !== 'physical') return {};
+  requireState(evidence?.note?.trim(), 'Describe what you observed or did.');
+  if (resetRequired) requireState(evidence.configurationConfirmed === true, 'Confirm the test configuration was restored.');
+  return { note: evidence.note.trim().slice(0, 2000), configurationConfirmed: evidence.configurationConfirmed === true, references: copy(evidence.references || []) };
+}
+const sourceOf = state => state.mode === 'physical' ? 'operator_report' : 'simulated_rig';
 
 /** Information gain uses a uniform hypothesis model, not calibrated confidence. */
 export function informationGain(state, testId) {
@@ -67,23 +85,32 @@ export function commitPrediction(previous, testId) {
   return state;
 }
 
-export function recordObservation(previous, outcome) {
+export function recordObservation(previous, outcome, evidence) {
   requireState(previous.phase === 'awaiting_observation' && previous.pending, 'Commit predictions before recording an observation.');
   const state = copy(previous);
   const { testId, predictions } = state.pending;
   requireState(outcome === 'unknown' || Object.hasOwn(TESTS[testId].outcomes, outcome), 'Unsupported observation.');
+  const recorded = operatorEvidence(state, evidence, true);
+  if (state.mode === 'physical' && testId === 'valve' && outcome !== 'unknown') requireState(evidence.stateConfirmed === true, 'Confirm valve state from a known indicator or calibration, not a guessed handle orientation.');
+  if (state.mode === 'physical' && testId === 'bypass' && outcome !== 'unknown') {
+    const m = evidence.measurement;
+    requireState(Number.isFinite(m?.volumeMl) && m.volumeMl >= 0 && Number.isFinite(m?.seconds) && m.seconds >= state.criterion.minSeconds, 'Record collected volume over the agreed minimum interval.');
+    requireState(outcome === (m.volumeMl > 0 ? 'flow' : 'no_flow'), 'The outcome must agree with the collected volume.');
+    recorded.measurement = copy(m);
+  }
+  if (state.mode === 'physical' && testId === 'valve') recorded.stateConfirmed = evidence.stateConfirmed === true;
   const priorCandidates = [...state.candidates];
   if (outcome !== 'unknown') state.candidates = state.candidates.filter(id => predictions[id] === outcome);
-  event(state, 'observation', { testId, outcome, source: 'simulated_rig', priorCandidates, remainingCandidates: state.candidates });
+  event(state, 'observation', { testId, outcome, source: sourceOf(state), ...recorded, priorCandidates, remainingCandidates: state.candidates });
   state.pending = null;
   state.phase = state.candidates.length === 0 ? 'conflict' : state.candidates.length === 1 ? 'diagnosed' : 'investigating';
   return state;
 }
 
-export function recordRepair(previous) {
+export function recordRepair(previous, evidence) {
   requireState(['diagnosed', 'verification_failed'].includes(previous.phase) && previous.candidates.length === 1, 'Isolate a supported fault before attempting its repair.');
   const state = copy(previous);
-  event(state, 'repair_attempted', { hypothesis: state.candidates[0], instruction: HYPOTHESES[state.candidates[0]].repair, source: 'simulated_rig' });
+  event(state, 'repair_attempted', { hypothesis: state.candidates[0], instruction: HYPOTHESES[state.candidates[0]].repair, source: sourceOf(state), ...operatorEvidence(state, evidence) });
   state.phase = 'awaiting_verification';
   return state;
 }
@@ -93,12 +120,14 @@ export function recordVerification(previous, measurement) {
   const { volumeMl, seconds } = measurement;
   requireState(Number.isFinite(volumeMl) && volumeMl >= 0 && Number.isFinite(seconds) && seconds > 0, 'A valid volume and duration are required.');
   const state = copy(previous);
-  const passed = seconds >= 10 && volumeMl / seconds >= 10;
-  event(state, 'verification', { source: 'simulated_rig', volumeMl, seconds, criterion: 'At least 10 mL/s over an interval of at least 10 seconds.', passed });
+  const { minRate, minSeconds } = state.criterion;
+  const recorded = operatorEvidence(state, measurement, true);
+  const passed = seconds >= minSeconds && volumeMl / seconds >= minRate;
+  event(state, 'verification', { source: sourceOf(state), ...recorded, volumeMl, seconds, rateMlPerSecond: volumeMl / seconds, criterion: `At least ${minRate} mL/s over an interval of at least ${minSeconds} seconds.`, passed });
   state.phase = passed ? 'complete' : 'verification_failed';
   return state;
 }
 
 export function evidenceExport(state, attachments = []) {
-  return { ...copy(state), exportedAt: new Date().toISOString(), provenance: 'Diagnostic observations and flow measurements are simulated. Camera attachments are user captures, not model-verified observations.', attachments: copy(attachments) };
+  return { ...copy(state), exportedAt: new Date().toISOString(), provenance: state.mode === 'physical' ? 'Physical test outcomes, repairs and measurements are operator-reported. Camera analysis and reviews are reference context, not independent verification of physical state or repair.' : 'Diagnostic observations and flow measurements are simulated. Camera attachments are user captures, not model-verified observations.', attachments: copy(attachments) };
 }

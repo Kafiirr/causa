@@ -2,7 +2,7 @@
 
 **Make the unknown observable.**
 
-A standalone, pre-event prototype for an evidence-first physical diagnostic assistant. The initial application combines a working diagnostic state machine with a simulated irrigation rig and browser camera reference capture.
+A standalone, pre-event prototype for an evidence-first physical diagnostic assistant. The initial application combines a working diagnostic state machine with simulation, guided operator-reported physical investigations, and browser camera reference capture.
 
 ## Run
 
@@ -35,10 +35,21 @@ Source assets live in `public/`; the shared gateway lives in `server/perception.
 
 An unclear observation retains the current hypotheses. A diagnosis or repair attempt cannot close a case. Verification requires at least 10 mL/s measured over at least 10 simulated seconds.
 
+## Investigate a physical rig
+
+Choose **New investigation → Physical rig**. Identify your tabletop rig, confirm the connection graph, one introduced fault and initial no-flow symptom, and set a healthy-output target (mL/s) and minimum collection interval (at least 10 seconds). No fault is selected or simulated in this mode.
+
+Commit a prediction before testing. The bypass test requires collected volume and duration; valve inspection requires an independently known indicator/calibration; pump inspection requires actual operator observation. “Cannot tell” preserves candidates. Record notes and confirm configuration restoration. Optionally link a camera/upload frame and its existing model analyses/reviews; these links add context only. You can choose another supported test if the recommended one is unavailable.
+
+The result card shows the suspected cause, supporting observations, repair and verification status. Record the repair you actually performed, then measure output with the bypass closed. Too-short or low-flow checks fail and leave the case open; conflicting observations produce no repair recommendation. A pass means the **operator-reported** measurement meets the precommitted criterion, not independent sensor verification. Export before closing/reloading: case state remains in browser memory.
+
+Physical workflow browser QA: `node scripts/physical-browser-check.cjs` with the same Playwright/Chrome environment variables and a preview on port 4183 (or `CAUSA_TEST_URL`). Its inputs and fake camera are test fixtures, not field-validation evidence.
+
 ## What is real and what is simulated
 
 - Real: information-gain test selection, explicit prediction commitments, immutable state transitions, hypothesis elimination, uncertainty handling, verification gating, evidence export, browser camera acquisition and capture.
-- Simulated: equipment state, diagnostic observations, repairs, and flow measurements. Test animations compress simulated time; they do not measure real elapsed collection time.
+- Simulation mode only: equipment state, diagnostic observations, repairs, and flow measurements. Test animations compress simulated time; they do not measure real elapsed collection time.
+- Physical mode: operator-reported setup, outcomes, repair attempts and volume/time measurements drive the authored four-cause model. They are not model-verified physical facts.
 - Camera captures / image uploads: six reference frames per case, preserved up to 1920 pixels per side and 2.1 megapixels, with JPEG quality adjusted only to fit the 1.8 MB gateway limit. They stay in browser memory until explicitly analyzed or exported. Starting another case or reloading clears them.
 - Meta perception: Muse Spark structured visual observations followed by task-specific SAM 3.1 segmentation requests (up to six unique concepts for a full scene). Task-specific targets, optional operator-selected crops, labeled frozen-frame overlays, per-component review, frame/crop hashes, and exportable model provenance. Requires a server key. Results never change the diagnostic engine.
 - Layout B mirrors the presentation of the same reviewed connection graph. This is not evidence of generalization to a new topology.

@@ -98,3 +98,9 @@ Live debugging checks used screenshots already containing older overlays, not cl
 - Replaying those stored live valve detections after the bounded edge-match correction assigned exactly one mask to each valve: main by direct box overlap, bypass as a tentative edge match. No new model call was required for this deterministic replay; it is not a fresh end-to-end live success claim.
 
 Gateway tests cover handle-only anchors, ambiguity, union area without double-counting/gap filling, complementary-concept deduplication/provenance, partial upstream failure, scene-label evidence, and bounded valve edge matching. Browser checks cover default-gray unresolved tube masks and their toggle separately from associated-mask counts. Pump masks and complete tubing/valve coverage remain unresolved model limitations.
+
+## Guided physical investigation — October 21, 2026
+
+Nine additional engine tests pass for reviewed setup/criterion requirements, missing notes/reset confirmation, bypass volume/outcome consistency and interval, independently confirmed valve state, all four operator-driven fault paths, failed/short checks, source/reference provenance and conflicting observations. Existing simulation, perception and frame-preparation suites pass unchanged. Syntax and TypeScript checks pass.
+
+The dedicated physical Chrome flow passes: physical case setup; uncertain result preserving candidates; committed bypass measurement; frame attachment without losing typed evidence; linked-frame export; confirmed valve state; recorded repair; failed check; repair reattempt; passing operator measurement; alternative-test contradiction with no repair; and responsive layouts at 390, 768 and 1440 pixels. The existing complete browser suite also passes all four simulation paths and camera/model-review regressions. These are scripted operator inputs and a fake camera, not physical experiments or measured real-rig performance. No new live model calls were made for this feature.

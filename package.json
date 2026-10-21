@@ -9,10 +9,11 @@
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node scripts/browser-check.cjs",
-    "check": "node --check public/app.js && node --check public/engine.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs",
+    "check": "node --check public/app.js && node --check public/engine.js && node --check public/physical.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs",
     "build": "node scripts/run-framework.mjs build",
     "dev:worker": "node scripts/run-framework.mjs dev",
-    "install:ci": "node scripts/install-ci.mjs"
+    "install:ci": "node scripts/install-ci.mjs",
+    "test:physical-browser": "node scripts/physical-browser-check.cjs"
   },
   "engines": {
     "node": ">=22.13.0"
