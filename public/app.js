@@ -1,4 +1,5 @@
 import { renderPhysicalStep, solutionMarkup, refreshPhysicalReferences } from './physical.js';
+import { cancelPlanning } from './planner-ui.js';
 import { frameSize } from './frame-preparation.js';
 import { HYPOTHESES, TESTS, createInvestigation, nextTest, commitPrediction, recordObservation, recordRepair, recordVerification, evidenceExport } from './engine.js';
 import { createPerception } from './perception.js';
@@ -94,6 +95,7 @@ function physicalReferences() {
 }
 
 function render() {
+  cancelPlanning();
   const physical = state.mode === 'physical';
   document.querySelector('.mode-pill').textContent = physical ? 'Physical investigation' : 'Simulation workspace';
   document.querySelector('.hero-aside > p').textContent = physical ? 'Your rig. Your observations. A measured repair check.' : 'Practice a complete investigation with simulated evidence.';
@@ -125,7 +127,7 @@ function render() {
   const lastObservation = observations.at(-1);
   if (physical) {
     const references = physicalReferences();
-    renderPhysicalStep({ state, references, update: next => { state=next; render(); }, selectComponent, predictions: predictionsMarkup, showEvidence: ()=>showPage('evidence'), newCase: ()=>$('case-dialog').showModal(), inspect: ()=>setView('camera') });
+    renderPhysicalStep({ state, getState: () => state, references, update: next => { state=next; render(); }, selectComponent, predictions: predictionsMarkup, showEvidence: ()=>showPage('evidence'), newCase: ()=>$('case-dialog').showModal(), inspect: ()=>setView('camera') });
   } else if (state.phase === 'investigating' || state.phase === 'awaiting_observation') {
     const committed = state.phase === 'awaiting_observation';
     const testId = committed ? state.pending.testId : nextTest(state);
@@ -185,6 +187,8 @@ function render() {
 }
 
 function describeEvent(e) {
+  if (e.type === 'plan_proposed') return { title: `Muse proposes: ${TESTS[e.proposal.plan.testId].name}`, summary: e.proposal.plan.rationale, details: [`Provider: ${e.proposal.provider} · requested model: ${e.proposal.model}`, `Reported model: ${e.proposal.reportedModel || 'not supplied'} · ${e.proposal.elapsedMs} ms`, 'No test performed or cause eliminated. Model input and output are included in the export.'] };
+  if (e.type === 'plan_decision') return { title: e.decision === 'accepted' ? 'Operator accepted the plan' : 'Operator declined the plan', summary: `Proposal ${e.proposalId}. ${e.decision === 'accepted' ? 'The next event commits its reviewed predictions.' : 'The operator may choose another reviewed test.'}` };
   const physical = e.source === 'operator_report';
   const notes = physical ? [e.note, ...(e.references || []).map(r=>`Reference frame: ${r.frameId} · ${r.reviewIds.length} linked reviews · context only`)].filter(Boolean) : undefined;
   if (e.type === 'started' && physical) return {title:'Physical investigation opened', summary:e.observation, details:[...e.assumptions, e.setup.note, `Agreed criterion: ${e.criterion.minRate} mL/s for at least ${e.criterion.minSeconds} seconds.`]};

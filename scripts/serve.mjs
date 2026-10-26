@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { handlePerception } from '../server/perception.mjs';
+import { handlePlanner } from '../server/planner.mjs';
 
 const envPath = fileURLToPath(new URL('../.env', import.meta.url));
 if (existsSync(envPath)) process.loadEnvFile(envPath);
@@ -25,7 +26,7 @@ const server = http.createServer(async (request, response) => {
       response.on('close', () => { if (!response.writableEnded) controller.abort(); });
       const apiRequest = new Request(url, { method: request.method, headers, signal: controller.signal,
         ...(!['GET','HEAD'].includes(request.method) ? { body: Readable.toWeb(request), duplex: 'half' } : {}) });
-      const result = await handlePerception(apiRequest, process.env);
+      const result = await (url.pathname === '/api/planner' ? handlePlanner : handlePerception)(apiRequest, process.env);
       response.writeHead(result.status, Object.fromEntries(result.headers));
       response.end(await result.text()); return;
     }

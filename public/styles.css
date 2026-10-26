@@ -77,3 +77,13 @@
 .solution-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.solution-summary h2{font-size:26px;line-height:1.25;margin:18px 0;letter-spacing:-.6px}.solution-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.solution-grid span{font-size:10px;letter-spacing:1px;color:#607151}.solution-grid p{font-size:14px;line-height:1.65;margin-top:8px}.solution-limit{font-size:11px;line-height:1.7;margin-top:18px;color:#5d6f54}
 .evidence-form{display:grid;gap:10px;min-width:0}.evidence-form label{display:block;font-size:12px;line-height:1.6;margin:4px 0}.evidence-form input:not([type=checkbox]),.evidence-form textarea,.evidence-form select,#physical-test{display:block;width:100%;min-width:0;box-sizing:border-box;border:1px solid #bdcbb0;border-radius:5px;padding:11px;background:#fffef9;color:#293e2c;font:inherit}.evidence-form textarea{min-height:85px;resize:vertical}.evidence-form .check-label{display:flex;align-items:flex-start;gap:9px}.check-label input{width:17px;height:17px;flex-shrink:0;margin-top:2px;accent-color:#536d40}.evidence-form p{font-size:11px;line-height:1.6;color:#647459}.evidence-form fieldset,fieldset.evidence-form{border:1px solid #cbd3c1;padding:16px;margin-top:16px}.measurement-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}#physical-error{color:#9d3528;font-weight:600}#physical-test{margin-bottom:12px;font-size:12px}dialog{max-height:90dvh;overflow:auto}#experiment-actions .evidence-form .button{width:100%}#experiment-actions .evidence-form{margin-top:14px}.solution-summary [hidden],.evidence-form [hidden],fieldset[hidden]{display:none!important}
 @media(max-width:650px){.solution-grid{grid-template-columns:1fr;gap:15px}.solution-summary{padding:18px}.solution-summary h2{font-size:23px}.solution-heading .tag{font-size:9px}.measurement-fields{grid-template-columns:1fr}}
+/* Model proposals stay visually separate from reported physical evidence. */
+.planner-panel { border: 1px solid var(--line, #d9dedb); border-radius: 12px; padding: 18px; width: 100%; min-width: 0; box-sizing: border-box; background: #f5f8f6; }
+.planner-panel h4 { margin: 0 0 8px; font-size: 18px; }
+.planner-panel p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.planner-panel fieldset { border: 0; padding: 0; margin: 16px 0; }
+.planner-panel legend { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.planner-panel .check-label { display: flex; align-items: start; gap: 8px; font-size: 13px; margin: 8px 0; }
+.planner-panel .button { width: 100%; white-space: normal; }
+.planner-panel .planner-status { font-size: 11px; color: #4c6254; }
+#planner-error { color: #8f351d; }

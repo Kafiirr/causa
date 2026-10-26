@@ -1,4 +1,5 @@
 import { HYPOTHESES, TESTS, nextTest, commitPrediction, recordObservation, recordRepair, recordVerification } from './engine.js';
+import { mountPlanner } from './planner-ui.js';
 const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = id => document.getElementById(id);
 let activeReferences = [];
@@ -24,7 +25,7 @@ function formMarkup(extra, references, submit) {
 const measurements = (minimum) => `<div class="measurement-fields"><label>Collected volume (mL)<input id="physical-volume" type="number" required min="0" step="any"></label><label>Measured interval (seconds)<input id="physical-seconds" type="number" required min="${minimum}" step="any"></label></div>`;
 const reset = text => `<label class="check-label"><input id="physical-reset" type="checkbox" required> ${text}</label>`;
 
-export function renderPhysicalStep({ state, update, references, selectComponent, predictions, showEvidence, newCase, inspect }) {
+export function renderPhysicalStep({ state, getState, update, references, selectComponent, predictions, showEvidence, newCase, inspect }) {
   activeReferences = references;
   const content = $('experiment-content');
   const actions = $('experiment-actions');
@@ -41,7 +42,8 @@ export function renderPhysicalStep({ state, update, references, selectComponent,
   };
   if (['investigating','awaiting_observation'].includes(state.phase)) {
     const committed = state.phase === 'awaiting_observation';
-    const testId = committed ? state.pending.testId : nextTest(state);
+    const proposal = state.events.at(-1)?.type === 'plan_proposed' ? state.events.at(-1).proposal : null;
+    const testId = committed ? state.pending.testId : proposal?.plan.testId || nextTest(state);
     if (!testId) { content.innerHTML='<h3>More evidence needed.</h3><p>The available tests cannot isolate a cause. Review your setup before opening a new case.</p>'; button('Review evidence',showEvidence); return; }
     selectComponent(TESTS[testId].component);
     const guidance = {
@@ -49,10 +51,17 @@ export function renderPhysicalStep({ state, update, references, selectComponent,
       valve: 'Keep the bypass closed. Determine the main valve state using its known open/closed indicator or a calibration you have checked. A handle angle or a still photo alone is insufficient. Do not change the valve during inspection.',
       pump: 'Keep both valve settings unchanged. Check whether the pump is actually running using your reviewed procedure, such as its operation indicator and audible operation. If it is powered but stalled, intermittent or ambiguous, record “Cannot tell”; that fault is outside this model.'
     };
-    content.innerHTML=`<h3>${esc(TESTS[testId].name)}.</h3><p class="experiment-description">${guidance[testId]}</p>${state.events.at(-1)?.outcome === 'unknown' ? '<div class="result-note warning">No cause eliminated. Improve the observation and repeat, or choose another test.</div>' : ''}${predictions(testId,committed)}`;
+    const showTest = id => {
+      selectComponent(TESTS[id].component);
+      content.innerHTML=`<h3>${esc(TESTS[id].name)}.</h3><p class="experiment-description">${guidance[id]}</p>${state.events.findLast(e=>e.type==='observation')?.outcome === 'unknown' ? '<div class="result-note warning">No cause eliminated. Improve the observation and repeat, or choose another test.</div>' : ''}${predictions(id,committed)}`;
+    };
+    showTest(testId);
     if (!committed) {
+      mountPlanner({ state, getState, update, actions });
+      if (proposal) return;
       const select = document.createElement('select'); select.id='physical-test'; select.setAttribute('aria-label','Choose diagnostic test');
-      for (const [id,t] of Object.entries(TESTS)) { const o=document.createElement('option');o.value=id;o.textContent=`${t.name}${id===testId ? ' — recommended' : ''}`;select.append(o); } select.value=testId;
+      for (const [id,t] of Object.entries(TESTS)) { const o=document.createElement('option');o.value=id;o.textContent=`${t.name}${id===testId ? ' — rule-based suggestion' : ''}`;select.append(o); } select.value=testId;
+      select.onchange=()=>showTest(select.value);
       actions.append(select);
       button('Commit prediction',()=>update(commitPrediction(state,select.value)));
       const b=document.createElement('button');b.className='unclear-button';b.textContent='Inspect equipment with camera';b.onclick=inspect;actions.append(b);

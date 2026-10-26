@@ -9,11 +9,12 @@
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node scripts/browser-check.cjs",
-    "check": "node --check public/app.js && node --check public/engine.js && node --check public/physical.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs",
+    "check": "node --check public/app.js && node --check public/engine.js && node --check public/physical.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs && node --check public/planning.js && node --check public/planner-ui.js && node --check server/planner.mjs",
     "build": "node scripts/run-framework.mjs build",
     "dev:worker": "node scripts/run-framework.mjs dev",
     "install:ci": "node scripts/install-ci.mjs",
-    "test:physical-browser": "node scripts/physical-browser-check.cjs"
+    "test:physical-browser": "node scripts/physical-browser-check.cjs",
+    "test:planner-browser": "node scripts/planner-browser-check.cjs"
   },
   "engines": {
     "node": ">=22.13.0"
@@ -22,7 +23,8 @@
     "@meta-sam/parser": "0.1.0",
     "next": "16.3.4",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

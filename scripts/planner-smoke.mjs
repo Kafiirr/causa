@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {createInvestigation} from '../public/engine.js';
+import {planningContext,recordPlan} from '../public/planning.js';
+import {createPlannerHandler} from '../server/planner.mjs';
+if(!process.argv.includes('--allow-live'))throw new Error('Pass --allow-live to make one billed model request.');
+const state=createInvestigation('live-smoke', {mode:'physical',setup:{confirmed:true,note:'Synthetic smoke fixture: reviewed tabletop water topology. No physical trial performed.'},criterion:{minRate:10,minSeconds:10}});
+const input=planningContext(state,['pump']);
+const response=await createPlannerHandler()(new Request('http://localhost/api/planner',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json','oai-authenticated-user-id':'planner-smoke'},body:JSON.stringify(input)}),process.env);
+const result=await response.json();
+if(!response.ok)throw new Error(JSON.stringify(result));
+const proposed=recordPlan(state,result,['pump']);assert.equal(proposed.pending,null);assert.equal(result.plan.testId,'pump');
+console.log(JSON.stringify({passed:true,fixture:'synthetic context; no physical trial',provider:result.provider,requestedModel:result.model,reportedModel:result.reportedModel,testId:result.plan.testId,elapsedMs:result.elapsedMs,usage:result.usage}));

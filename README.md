@@ -60,7 +60,7 @@ The planner never receives the selected simulator fault. This is separation of a
 
 ## Project boundaries
 
-This project uses original source in an independent project directory. It does not import Barzakh code or modify its app, dependencies, contracts, or runtime. The Sites source workflow creates an independent Git repository for CAUSA. The surrounding Barzakh checkout may show this directory as untracked; do not add it as a Barzakh submodule unintentionally.
+This project uses original source in an independent Git repository at `/home/kafir/causa`. It does not import Barzakh code or modify its app, dependencies, contracts, or runtime. It was relocated from the Barzakh workspace without rewriting its history. See [hackathon readiness](docs/HACKATHON-READINESS.md) for the pre-event baseline and proposed event contributions.
 
 The interface loads DM Sans and Space Grotesk from Google Fonts, with system fallbacks. Camera frames are not sent to the font provider. Choosing **Analyze selected frame** sends that frame and any selected crop through the server to Meta, when credentials are configured.
 
@@ -73,6 +73,14 @@ The interface loads DM Sans and Space Grotesk from Google Fonts, with system fal
 5. Run blind trials, including unsupported faults and ambiguous views, against a fixed checklist.
 
 See [architecture](docs/ARCHITECTURE.md), [build brief](docs/BUILD-BRIEF.md), and [field rig](docs/FIELD-RIG.md).
+
+## Model-assisted physical test planning
+
+Start a **Physical rig** investigation and use **Ask Muse for the next test**. Select the reviewed tests you can perform, request a proposal, then accept or decline it. Acceptance commits predictions; it does not execute hardware or record an observation. The evidence export retains the provider, requested/reported model, prompt, input, raw output, validated plan and operator decision.
+
+The default planner uses Meta `muse-spark-1.3` with `MODEL_API_KEY`. To use the hackathon Baseten model, set `CAUSA_PLANNER_PROVIDER=baseten` and `BASETEN_API_KEY` in the server environment. The model is pinned to **`meta-models/muse-spark-open-1026`**. There is no alias or provider fallback. Local `.env` configuration does not automatically configure hosted runtime secrets.
+
+Run `npm run test:planner-browser` against a preview for mocked browser checks. `node --env-file=.env scripts/planner-smoke.mjs --allow-live` makes one billed request using a synthetic physical-mode context. Neither establishes real-rig performance. See [contribution dates and model verification](docs/CONTRIBUTIONS.md) and [submission readiness](docs/HACKATHON-READINESS.md).
 
 ## Configure Meta perception
 
