@@ -19,3 +19,7 @@ Baseten planner: `meta-models/muse-spark-open-1026`, with `BASETEN_API_KEY` and 
 The exact Baseten ID comes from the participant guide override. No generic alias or cross-provider fallback is used. SAM perception remains on the Meta API using `sam-3.1`.
 
 Local live check: one request to Meta, requested and reported model `muse-spark-1.3`, valid pump test proposal, 3.413 seconds, 321 input / 324 output tokens. This used a synthetic context, not a physical rig. Baseten live access remains unverified because its credential is not configured. No physical accuracy or improved diagnosis performance is claimed.
+
+## Equipment expansion — October 26–27, 2026
+
+Added a separate equipment workspace, generic authored-model diagnostic engine, fan and conveyor simulations, custom equipment forms with operator-report mode, equipment-aware Meta planning, reference-image exports, and regression/browser coverage. Existing water investigations remain intact. No physical fan or conveyor trials have been performed. This date range straddles the guide’s stated build-period start; retain source history and confirm eligibility rather than claiming all work was built within the event.

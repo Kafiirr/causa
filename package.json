@@ -9,12 +9,13 @@
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node scripts/browser-check.cjs",
-    "check": "node --check public/app.js && node --check public/engine.js && node --check public/physical.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs && node --check public/planning.js && node --check public/planner-ui.js && node --check server/planner.mjs",
+    "check": "node --check public/app.js && node --check public/engine.js && node --check public/physical.js && node --check public/rig.js && node --check public/perception.js && node --check server/perception.mjs && node --check public/planning.js && node --check public/planner-ui.js && node --check server/planner.mjs && node --check public/equipment-engine.js && node --check public/equipment.js",
     "build": "node scripts/run-framework.mjs build",
     "dev:worker": "node scripts/run-framework.mjs dev",
     "install:ci": "node scripts/install-ci.mjs",
     "test:physical-browser": "node scripts/physical-browser-check.cjs",
-    "test:planner-browser": "node scripts/planner-browser-check.cjs"
+    "test:planner-browser": "node scripts/planner-browser-check.cjs",
+    "test:equipment-browser": "node scripts/equipment-browser-check.cjs"
   },
   "engines": {
     "node": ">=22.13.0"
