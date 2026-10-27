@@ -117,13 +117,3 @@ node scripts/meta-browser-smoke.cjs --allow-live
 The first command sends the specified image to Meta and records a sanitized report in `artifacts/meta-live-smoke.json`. It runs one Muse request and up to six unique-concept segmentation requests. `--sam` adds a standalone valve segmentation request only if Muse selects no components. The second uses the app's synthetic schematic and an operator-selected crop to test upload, the original-plus-crop Muse request, targeted SAM, review, and export. Its report and full evidence export stay in ignored `artifacts/`. These are integration checks, not camera-accuracy tests.
 
 To check a supplied reference image with live Meta calls, run `node scripts/meta-reference-check.cjs --allow-live --image path/to/reference.png` with the preview and Playwright available. Optional `--task pump --region 200,290,185,185` tests a manually selected crop in resized source pixels. Reports and overlays stay in ignored `artifacts/`; no reference image or key is committed. This is a debugging check, not a held-out accuracy evaluation.
-
-### Equipment investigations
-
-Open `/equipment.html` (also linked as **Fans & machines**) for desk-fan and conveyor prototype simulations. A separate equipment engine binds every case to its authored hypotheses, test predictions, corrective actions, and measurement criterion. The water workspace and its physical workflow remain available unchanged.
-
-The custom builder defines three causes and two binary tests, with pairwise distinguishability validation. Custom cases support simulation or operator-reported physical observations; physical cases require reviewed setup/procedure notes, evidence, configuration-reset confirmation, repair notes, and functional measurements. The underlying engine accepts 2–6 causes and 1–8 tests. These authored models are not independently validated.
-
-Meta direct planning uses `muse-spark-1.3`; the optional Baseten provider remains pinned to `meta-models/muse-spark-open-1026`. The server reconstructs candidates and restricts proposals to informative authored tests. Hidden simulated faults and reference images are excluded from planner requests. Acceptance records model provenance before committing predictions.
-
-Equipment reference uploads are visual context only (no image analysis in this workspace). Exports include the equipment model, ordered evidence, mode/provenance and optional image/hash. Cases are held in page memory; export before navigating away. Built-in simulations are not physical validation, and CAUSA does not infer arbitrary machine repair procedures from photos.
