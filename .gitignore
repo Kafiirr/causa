@@ -12,3 +12,7 @@ artifacts/
 /.next/
 *.tsbuildinfo
 next-env.d.ts
+/.vercel/
+/dist-vercel/
+.vercel
+.env*

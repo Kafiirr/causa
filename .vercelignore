@@ -1,0 +1,10 @@
+.env
+.env.*
+.git
+node_modules
+artifacts
+dist
+.sites-runtime
+.wrangler
+.vinext
+.next

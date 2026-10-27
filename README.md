@@ -2,14 +2,29 @@
 
 **Make the unknown observable.**
 
-A standalone, pre-event prototype for an evidence-first physical diagnostic assistant. The initial application combines a working diagnostic state machine with simulation, guided operator-reported physical investigations, and browser camera reference capture.
+Causa investigates no-flow faults in a tabletop water system: reservoir → pump → main/bypass branches → collection cup. It guides tests, records predictions before observations, narrows supported causes, recommends a repair, and requires a separate functional check.
+
+**Current scope:** main valve closed, main tube restricted, inlet obstructed, or pump off—one fault at a time in the reviewed topology. It is not a general machine diagnostic tool.
+
+**Demo without hardware:** run a simulated investigation and load a reference image in Camera to demonstrate visual inspection. Image analysis stays separate from the simulated diagnosis. A successful simulated repair is not a verified physical repair.
+
+| Capability | Model / runtime | Role |
+| --- | --- | --- |
+| Simulation | Deterministic diagnostic engine | Chooses informative tests and replays evidence without an LLM |
+| Physical test proposals | Baseten `meta-models/muse-spark-open-1026` | Proposes an authored test for operator acceptance |
+| Visual observations | Meta `muse-spark-1.3` | Describes and proposes locations of visible components |
+| Segmentation | Meta `sam-3.1` | Produces candidate masks for operator review |
+
+Baseten is the configured planner provider. The exact hackathon model ID is pinned; the generic documentation alias is not used. An explicitly selected Meta direct planner is also supported.
 
 ## Run
 
 Requires Node.js 22.13 or later. Install dependencies once. No API key is needed for simulation, camera capture, or offline tests.
 
 ```sh
-npm run install:ci
+npm ci
+cp .env.example .env
+# Add server API keys to .env only if using live AI.
 npm start
 ```
 
@@ -22,7 +37,7 @@ npm run check
 
 Optional browser checks are in `scripts/browser-check.cjs`. With a preview running and Playwright available, run `npm run test:browser`. `PLAYWRIGHT_MODULE` can point to an existing Playwright installation; `CHROME_PATH` can select an installed Chromium browser. Otherwise the script uses Playwright's installed browser. It uses a synthetic camera, writes ignored screenshots and an evidence export to `artifacts/`, and checks all fault paths, camera lifecycle, export, responsive layouts, and case-reset races. `CAUSA_TEST_URL` defaults to the local preview URL. This optional QA dependency is not required by the application.
 
-Source assets live in `public/`; the shared gateway lives in `server/perception.mjs`. `npm run build` creates the Sites Worker and browser assets in `dist/`. The loopback development server serves the same gateway; opening HTML as a local file is unsupported.
+Source assets live in `public/`; shared model gateways live in `server/`. `node scripts/build-vercel.mjs` prepares Vercel static assets; `api/` supplies Node functions. The existing `npm run build` remains the optional Sites/Cloudflare build. The loopback development server serves the same gateways; opening HTML as a local file is unsupported.
 
 ## Try the investigation
 
@@ -58,9 +73,11 @@ Physical workflow browser QA: `node scripts/physical-browser-check.cjs` with the
 
 The planner never receives the selected simulator fault. This is separation of application responsibilities, not a security boundary against someone inspecting local browser code.
 
-## Project boundaries
+## Contribution history
 
-This project uses original source in an independent Git repository at `/home/kafir/causa`. It does not import Barzakh code or modify its app, dependencies, contracts, or runtime. It was relocated from the Barzakh workspace without rewriting its history. See [hackathon readiness](docs/HACKATHON-READINESS.md) for the pre-event baseline and proposed event contributions.
+This standalone repository preserves the prototype's history. The pre-event baseline is `ea084fdb5c1616b334a5e14e56b2ddec315e4cc9` (October 21, 2026). The simulation, physical evidence forms, perception and export existed before the event. Physical-mode model planning was added October 26; the supplied guide lists October 27–November 4 as the building period. These dates must be disclosed when selecting eligible demo contributions.
+
+See [contributions](docs/CONTRIBUTIONS.md) and [hackathon readiness](docs/HACKATHON-READINESS.md). Deployment does not establish eligibility or real-rig accuracy.
 
 The interface loads DM Sans and Space Grotesk from Google Fonts, with system fallbacks. Camera frames are not sent to the font provider. Choosing **Analyze selected frame** sends that frame and any selected crop through the server to Meta, when credentials are configured.
 
@@ -78,14 +95,14 @@ See [architecture](docs/ARCHITECTURE.md), [build brief](docs/BUILD-BRIEF.md), an
 
 Start a **Physical rig** investigation and use **Ask Muse for the next test**. Select the reviewed tests you can perform, request a proposal, then accept or decline it. Acceptance commits predictions; it does not execute hardware or record an observation. The evidence export retains the provider, requested/reported model, prompt, input, raw output, validated plan and operator decision.
 
-The default planner uses Meta `muse-spark-1.3` with `MODEL_API_KEY`. To use the hackathon Baseten model, set `CAUSA_PLANNER_PROVIDER=baseten` and `BASETEN_API_KEY` in the server environment. The model is pinned to **`meta-models/muse-spark-open-1026`**. There is no alias or provider fallback. Local `.env` configuration does not automatically configure hosted runtime secrets.
+The code fallback is Meta `muse-spark-1.3` with `MODEL_API_KEY`. This deployment and `.env.example` explicitly select Baseten: set `CAUSA_PLANNER_PROVIDER=baseten` and `BASETEN_API_KEY` in the server environment. The model is pinned to **`meta-models/muse-spark-open-1026`**. There is no alias or provider fallback. Local `.env` configuration does not automatically configure hosted runtime secrets.
 
 Run `npm run test:planner-browser` against a preview for mocked browser checks. `node --env-file=.env scripts/planner-smoke.mjs --allow-live` makes one billed request using a synthetic physical-mode context. Neither establishes real-rig performance. See [contribution dates and model verification](docs/CONTRIBUTIONS.md) and [submission readiness](docs/HACKATHON-READINESS.md).
 
 ## Configure Meta perception
 
 1. Copy `.env.example` to the ignored `.env` in **this CAUSA directory**. Set `MODEL_API_KEY` locally; do not put it in browser code, Git, screenshots, or chat.
-2. Restart `npm start`. For the hosted site, set the same name in Sites runtime secrets; the local `.env` is never published.
+2. Restart `npm start`. For Vercel, set the same name in project environment variables; the local `.env` is never published. Unlock live AI using the footer link before analyzing.
 3. Open **Camera → Check connection**, capture or load a reference image, choose an inspection, then **Analyze selected frame**. Status confirms only key presence, not working model access.
 4. **Inspection** and **Analysis target** control the same target, including full-frame reservoir, outlet, and tubing inspection. **All visible components** checks all six component roles. Changing either selector clears the displayed result and requires an explicit analysis.
 5. Inspect the two independent outputs: dashed component-colored boxes are approximate **Muse proposals**; filled regions are **SAM masks** associated with those proposals. Each has its own visibility toggle and review. A Muse box does not turn a SAM miss into a successful mask. Generic SAM matches that cannot be assigned remain available under **unassigned candidates**, without a main/bypass role label. Unassigned tubing masks are shown in gray by default so a matching failure is not mistaken for a missing detection; they remain excluded from associated-mask counts.
@@ -98,11 +115,35 @@ The gateway uses `muse-spark-1.3` and `sam-3.1`, fixed Meta endpoints, a 30-seco
 
 See [perception architecture and API references](docs/ARCHITECTURE.md) and [validation protocol](docs/VALIDATION.md).
 
-### Local versus hosted configuration
+## Deploy to Vercel
 
-`causa/.env` configures only your local process. Restart `npm start` after changing it. The published site reads **Sites runtime secrets**, so changing the local file cannot activate the hosted URL. Hosted secret updates require deployment to apply their environment revision. Never place keys in `public/`, `.openai/hosting.json`, or a browser environment variable.
+Import this GitHub repository into Vercel. The committed `vercel.json` selects the static frontend and native Node functions, independently of the optional Cloudflare adapter. Use Node 22 or later.
 
-The hosted key was configured as a secret during activation. The status endpoint checks key presence only; a successful analysis verifies actual model access at that time.
+Set these **server-only Production environment variables**, then deploy:
+
+| Variable | Purpose |
+| --- | --- |
+| `CAUSA_PLANNER_PROVIDER` | `baseten` |
+| `BASETEN_API_KEY` | Baseten hackathon credential |
+| `MODEL_API_KEY` | Meta image reasoning and segmentation credential |
+| `CAUSA_ACCESS_PASSWORD` | Private demo access code, at least 32 randomly generated characters |
+
+```sh
+vercel link
+vercel env add CAUSA_PLANNER_PROVIDER production
+vercel env add BASETEN_API_KEY production
+vercel env add MODEL_API_KEY production
+vercel env add CAUSA_ACCESS_PASSWORD production
+vercel --prod
+```
+
+The public simulation and manual physical workflow do not require a code. **Live AI access** in the footer opens a separate tab to unlock paid calls with a signed, secure, HttpOnly cookie lasting 12 hours. Share the demo code privately with reviewers; never share provider keys. Returning to the existing investigation tab preserves its in-memory evidence. Rotating the code and redeploying invalidates existing sessions.
+
+Vercel validates the session before supplying identity to the shared gateways; client-supplied Sites identity headers are discarded. Same-origin checks and gateway request bounds remain enforced. All demo sessions share an in-memory rate bucket per running instance; this is not a durable spending cap or a multi-user account system. Preview deployments need separately configured credentials if live AI is desired.
+
+Local `.env` changes do not configure Vercel. Hosted environment changes require redeployment. Never put keys in `public/`, Git, or `NEXT_PUBLIC_`/`VITE_` variables. Status endpoints report configuration only; a successful model request establishes actual access at that time.
+
+The optional Sites deployment retains its Cloudflare routes and platform identity. Its runtime secrets are configured separately. `npm run install:ci` and `npm run build` remain available for that hosting environment.
 
 ### Explicit live integration checks
 

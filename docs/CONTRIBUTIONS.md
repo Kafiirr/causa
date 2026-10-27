@@ -18,4 +18,10 @@ Meta direct planner: `muse-spark-1.3`, with `MODEL_API_KEY`.
 Baseten planner: `meta-models/muse-spark-open-1026`, with `BASETEN_API_KEY` and `CAUSA_PLANNER_PROVIDER=baseten`.
 The exact Baseten ID comes from the participant guide override. No generic alias or cross-provider fallback is used. SAM perception remains on the Meta API using `sam-3.1`.
 
-Local live check: one request to Meta, requested and reported model `muse-spark-1.3`, valid pump test proposal, 3.413 seconds, 321 input / 324 output tokens. This used a synthetic context, not a physical rig. Baseten live access remains unverified because its credential is not configured. No physical accuracy or improved diagnosis performance is claimed.
+Local live check: one request to Meta, requested and reported model `muse-spark-1.3`, valid pump test proposal, 3.413 seconds, 321 input / 324 output tokens. This used a synthetic context, not a physical rig. Baseten live access was subsequently verified with one synthetic physical-mode context: requested/reported `meta-models/muse-spark-open-1026`, valid pump proposal, 3.465 seconds, 454 input / 772 output tokens. No physical accuracy or improved diagnosis performance is claimed.
+
+## October 27, 2026
+
+- Added native Vercel API adapters and a public static deployment, preserving the Sites adapter.
+- Added private live-AI access with signed browser sessions and tests rejecting forged identity headers.
+- Updated README deployment, model roles and reference-image demo instructions.
