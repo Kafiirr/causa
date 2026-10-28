@@ -2,6 +2,8 @@
 
 **Make the unknown observable.**
 
+[Live demo](https://causa-gold-pi.vercel.app) · [Source](https://github.com/Kafiirr/causa)
+
 Causa investigates no-flow faults in a tabletop water system: reservoir → pump → main/bypass branches → collection cup. It guides tests, records predictions before observations, narrows supported causes, recommends a repair, and requires a separate functional check.
 
 **Current scope:** main valve closed, main tube restricted, inlet obstructed, or pump off—one fault at a time in the reviewed topology. It is not a general machine diagnostic tool.
