@@ -2,7 +2,7 @@
 
 **Make the unknown observable.**
 
-[Live demo](https://causa-gold-pi.vercel.app) · [Source](https://github.com/Kafiirr/causa)
+[Live demo](https://www.causaa.biz.id) · [Source](https://github.com/Kafiirr/causa)
 
 Causa investigates no-flow faults in a tabletop water system: reservoir → pump → main/bypass branches → collection cup. It guides tests, records predictions before observations, narrows supported causes, recommends a repair, and requires a separate functional check.
 
