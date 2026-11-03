@@ -4,11 +4,13 @@ const COOKIE = '__Host-causa-access';
 const TTL = 12 * 60 * 60;
 const digest = value => createHash('sha256').update(value).digest();
 const equal = (a, b) => timingSafeEqual(digest(a), digest(b));
+const publicAccess = env => env.CAUSA_ACCESS_PASSWORD === '';
 const configured = env => typeof env.CAUSA_ACCESS_PASSWORD === 'string' && env.CAUSA_ACCESS_PASSWORD.length >= 32;
 const sign = (payload, env) => createHmac('sha256', env.CAUSA_ACCESS_PASSWORD).update(payload).digest('base64url');
 const json = (body, status) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export function hasAccess(request, env, now = Date.now()) {
+  if (publicAccess(env)) return true;
   if (!configured(env)) return false;
   const token = (request.headers.get('cookie') || '').split(';').map(v => v.trim()).find(v => v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
   if (!token || token.length > 256) return false;
@@ -22,6 +24,7 @@ function page(message = '', status = 200, cookie) {
 }
 
 export async function handleAccess(request, env = process.env) {
+  if (publicAccess(env)) return Response.redirect(new URL('/', request.url), 303);
   if (!configured(env)) return page('Live AI access has not been configured.', 503);
   if (request.method === 'GET') return page(hasAccess(request, env) ? 'Live AI is unlocked for this browser.' : '');
   if (request.method !== 'POST') return new Response(null, { status: 405 });

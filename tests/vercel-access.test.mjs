@@ -37,3 +37,14 @@ test('Public status strips untrusted identity and login bounds its body', async 
   assert.deepEqual(await response.json(), { identity: null });
   assert.equal((await handleAccess(login('x'.repeat(2000)), env)).status, 413);
 });
+
+test('Explicit empty password enables anonymous AI; absent or invalid config stays closed', async () => {
+  const request = () => new Request(`${origin}/api/perception`, { method: 'POST', body: '{}' });
+  const handler = withVercelAccess(() => new Response('ok'));
+  assert.equal((await handler(request(), { CAUSA_ACCESS_PASSWORD: '' })).status, 200);
+  assert.equal((await handler(request(), {})).status, 401);
+  assert.equal((await handler(request(), { CAUSA_ACCESS_PASSWORD: 'short' })).status, 401);
+  const response = await handleAccess(new Request(`${origin}/api/access`), { CAUSA_ACCESS_PASSWORD: '' });
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get('location'), `${origin}/`);
+});

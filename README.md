@@ -128,7 +128,7 @@ Set these **server-only Production environment variables**, then deploy:
 | `CAUSA_PLANNER_PROVIDER` | `baseten` |
 | `BASETEN_API_KEY` | Baseten hackathon credential |
 | `MODEL_API_KEY` | Meta image reasoning and segmentation credential |
-| `CAUSA_ACCESS_PASSWORD` | Private demo access code, at least 32 randomly generated characters |
+| `CAUSA_ACCESS_PASSWORD` | Set to an empty string for public AI access; optionally use a private code of at least 32 characters |
 
 ```sh
 vercel link
@@ -139,9 +139,11 @@ vercel env add CAUSA_ACCESS_PASSWORD production
 vercel --prod
 ```
 
-The public simulation and manual physical workflow do not require a code. **Live AI access** in the footer opens a separate tab to unlock paid calls with a signed, secure, HttpOnly cookie lasting 12 hours. Share the demo code privately with reviewers; never share provider keys. Returning to the existing investigation tab preserves its in-memory evidence. Rotating the code and redeploying invalidates existing sessions.
+The hosted demo uses `CAUSA_ACCESS_PASSWORD=` to allow public image analysis and model-assisted planning without login. Provider keys remain server-side. An absent variable or a nonempty code shorter than 32 characters blocks paid calls.
 
-Vercel validates the session before supplying identity to the shared gateways; client-supplied Sites identity headers are discarded. Same-origin checks and gateway request bounds remain enforced. All demo sessions share an in-memory rate bucket per running instance; this is not a durable spending cap or a multi-user account system. Preview deployments need separately configured credentials if live AI is desired.
+For optional private deployments, set a code of at least 32 characters. The public simulation and manual physical workflow do not require a code. **Live AI access** in the footer opens a separate tab to unlock paid calls with a signed, secure, HttpOnly cookie lasting 12 hours. Share the demo code privately with reviewers; never share provider keys. Returning to the existing investigation tab preserves its in-memory evidence. Rotating the code and redeploying invalidates existing sessions.
+
+Vercel permits public access when explicitly configured, or validates a private session before supplying identity to the shared gateways; client-supplied Sites identity headers are discarded. Same-origin checks and gateway request bounds remain enforced. All demo sessions share an in-memory rate bucket per running instance; this is not a durable spending cap or a multi-user account system. Preview deployments need separately configured credentials if live AI is desired.
 
 Local `.env` changes do not configure Vercel. Hosted environment changes require redeployment. Never put keys in `public/`, Git, or `NEXT_PUBLIC_`/`VITE_` variables. Status endpoints report configuration only; a successful model request establishes actual access at that time.
 
